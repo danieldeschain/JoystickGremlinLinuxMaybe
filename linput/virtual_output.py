@@ -38,7 +38,7 @@ except ImportError:
     UINPUT_AVAILABLE = False
     uinput = None
 
-from .types import DeviceSummary, AxisMap, UUID_VIRTUAL
+from .types import DeviceSummary, AxisMap, UUID_Virtual
 
 
 class UInputError(Exception):
@@ -84,7 +84,7 @@ class LinuxVirtualDevice:
         
         # Generate a consistent UUID for this virtual device
         device_info = f"virtual:{device_id}:{self.name}"
-        self.device_guid = uuid.uuid5(UUID_VIRTUAL, device_info)
+        self.device_guid = uuid.uuid5(UUID_Virtual, device_info)
     
     def create(self) -> None:
         """Create the virtual device."""

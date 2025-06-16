@@ -34,12 +34,12 @@ from . import types
 
 # Re-export commonly used types and classes
 from .types import (
-    InputType, InputEvent, DeviceSummary, AxisInfo, ButtonInfo, HatInfo,
+    InputType, InputEvent, DeviceSummary, AxisMap, DeviceActionType,
     UUID_Invalid, UUID_Keyboard, UUID_Mouse, GUID_Keyboard, GUID_Mouse
 )
-from .device_manager import DeviceManager
+from .device_manager import EvdevInputManager
 from .keyboard_mouse import KeyboardMouseManager
-from .virtual_output import VirtualJoystick
+from .virtual_output import LinuxVirtualDevice, LinuxVirtualDeviceManager
 
 # Global instances
 _device_manager = None
@@ -53,8 +53,8 @@ def initialize():
     logger.info("Initializing Linux input/output backend")
     
     # Initialize device manager for joystick/gamepad input
-    _device_manager = DeviceManager()
-    _device_manager.start_monitoring()
+    _device_manager = EvdevInputManager()
+    _device_manager.start()
     
     # Initialize keyboard/mouse manager
     _keyboard_mouse_manager = KeyboardMouseManager()
@@ -70,7 +70,7 @@ def shutdown():
     
     # Stop device monitoring
     if _device_manager:
-        _device_manager.stop_monitoring()
+        _device_manager.stop()
         _device_manager = None
     
     # Clean up keyboard/mouse manager
@@ -110,20 +110,14 @@ def get_device_information_by_index(index):
         return devices[index]
     return None
 
-from .device_manager import EvdevInputManager
-from .types import (
-    InputEvent, 
-    DeviceSummary, 
-    InputType,
-    DeviceActionType,
-    AxisMap
-)
-
 __all__ = [
     "EvdevInputManager",
     "InputEvent",
     "DeviceSummary", 
     "InputType",
     "DeviceActionType",
-    "AxisMap"
+    "AxisMap",
+    "LinuxVirtualDevice",
+    "LinuxVirtualDeviceManager",
+    "KeyboardMouseManager"
 ]

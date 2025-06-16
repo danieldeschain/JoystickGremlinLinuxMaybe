@@ -40,8 +40,8 @@ from .types import (
     InputType,
     DeviceActionType,
     AxisMap,
-    UUID_KEYBOARD,
-    UUID_VIRTUAL
+    UUID_Keyboard,
+    UUID_Virtual
 )
 
 
