@@ -734,7 +734,18 @@ def is_user_admin():
     Returns:
         True if user has admin rights, False otherwise
     """
-    return ctypes.windll.shell32.IsUserAnAdmin() == 1
+    import platform
+    if platform.system() == "Windows":
+        import ctypes
+        return ctypes.windll.shell32.IsUserAnAdmin() == 1
+    else:
+        # Linux: check if user is root or has sudo privileges
+        import os
+        if os.getuid() == 0:
+            return True
+        # Check if user can run sudo without password (optional)
+        # For now, just return False for non-root users
+        return False
 
 
 def with_center_calibration(
@@ -824,12 +835,28 @@ def truncate(text: str, left_size: int, right_size: int) -> str:
 
 
 def userprofile_path() -> str:
-    """Returns the path to the user's profile folder, %userprofile%.
+    """Returns the path to the user's profile folder.
+
+    On Windows: %userprofile%/Joystick Gremlin
+    On Linux: ~/.config/joystick-penguin
 
     Returns:
         Path to the user's profile folder
     """
-    return str((Path(os.getenv("userprofile")) / "Joystick Gremlin").resolve())
+    import platform
+    if platform.system() == "Windows":
+        userprofile = os.getenv("userprofile")
+        if userprofile:
+            return str((Path(userprofile) / "Joystick Gremlin").resolve())
+        else:
+            raise RuntimeError("userprofile environment variable not found")
+    else:
+        # Linux: use XDG config directory
+        home = os.getenv("HOME")
+        if not home:
+            raise RuntimeError("HOME environment variable not found")
+        config_dir = os.getenv("XDG_CONFIG_HOME", os.path.join(home, ".config"))
+        return str((Path(config_dir) / "joystick-penguin").resolve())
 
 
 def resource_path(relative_path: str) -> str:

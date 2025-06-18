@@ -23,6 +23,7 @@ completely replacing the Windows SendInput API.
 """
 
 import logging
+import math
 import threading
 import time
 from typing import Optional
@@ -175,3 +176,99 @@ def send_text(text: str):
     """Legacy function for sending text."""
     sender = LinuxInputSender()
     sender.send_text(text)
+
+class MouseMotion:
+    """Base class of all mouse motion behaviors."""
+
+    # Time step between calls
+    delta_t = 0.01
+
+    def __init__(self, dx: float=0, dy: float=0):
+        """Creates a new instance.
+
+        Args:
+            dx: motion along the x-axis in pixels per second
+            dy: motion along the y-axis in pixels per second
+        """
+        self.dx = dx
+        self.dy = dy
+
+        self._tick_dx_value, self._tick_dx_time = self._compute_values(self.dx)
+        self._tick_dy_value, self._tick_dy_time = self._compute_values(self.dy)
+
+        self._dx_timestamp = 0
+        self._dy_timestamp = 0
+
+    def __call__(self) -> tuple[int, int]:
+        """Returns the change in x and y for this point in time.
+
+        Returns:
+            The change in (dx, dy) for this time point
+        """
+        if self._tick_dx_value == 0 and self._tick_dy_value == 0:
+            return 0, 0
+
+        delta_x = 0
+        delta_y = 0
+
+        cur_time = time.time()
+        if self._dx_timestamp < cur_time:
+            delta_x = self._tick_dx_value
+            self._dx_timestamp = cur_time + self._tick_dx_time
+        if self._dy_timestamp < cur_time:
+            delta_y = self._tick_dy_value
+            self._dy_timestamp = cur_time + self._tick_dy_time
+
+        return delta_x, delta_y
+
+    def _compute_values(self, delta: float) -> tuple[int, float]:
+        """Computes discretization values to send integer motions.
+
+        Args:
+            delta: the amount of change in pixels per second to discretize for
+
+        Returns:
+            Discretization information in terms of cursor movement amount
+            and movement interval
+        """
+        delta = 0.0 if abs(delta) < 1e-6 else delta
+        tick_value = math.ceil(abs(delta) / 100.0)
+        if tick_value == 0:
+            tick_time = MouseMotion.delta_t
+        else:
+            tick_time = 1.0 / (abs(delta) / tick_value)
+            tick_value = int(math.copysign(tick_value, delta))
+
+        return tick_value, tick_time
+
+
+class FixedMouseMotion(MouseMotion):
+    """Motion generation with fixed speed."""
+
+    def __init__(self, dx: float=0, dy: float=0):
+        """Creates a new instance.
+
+        Args:
+            dx: motion along the x-axis in pixels per second
+            dy: motion along the y-axis in pixels per second
+        """
+        super().__init__(dx, dy)
+
+
+class AcceleratedMouseMotion(MouseMotion):
+    """Motion generation with acceleration and deceleration."""
+
+    def __init__(self, dx: float=0, dy: float=0, acceleration: float=100.0,
+                 max_velocity: float=1000.0):
+        """Creates a new instance.
+
+        Args:
+            dx: motion along the x-axis in pixels per second
+            dy: motion along the y-axis in pixels per second
+            acceleration: acceleration in pixels per second squared
+            max_velocity: maximum velocity in pixels per second
+        """
+        super().__init__(dx, dy)
+        self.acceleration = acceleration
+        self.max_velocity = max_velocity
+        self.current_velocity = 0.0
