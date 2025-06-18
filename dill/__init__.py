@@ -288,7 +288,31 @@ class DILL:
         if not DILL._initialized:
             raise DILLError("DILL not initialized")
         
+        if not LINPUT_AVAILABLE:
+            raise DILLError("Linput backend not available")
+        
+        # Handle null GUID case gracefully (common when no devices are connected)
+        null_guid = uuid.UUID('00000000-0000-0000-0000-000000000000')
+        if guid.uuid == null_guid:
+            # Return a dummy device summary for null GUID
+            from linput.types import DeviceSummary as LinputDeviceSummary
+            dummy_device = LinputDeviceSummary(
+                device_guid=null_guid,
+                name="No Device",
+                vendor_id=0,
+                product_id=0,
+                axis_count=0,
+                button_count=0,
+                hat_count=0,
+                axis_map=[],
+                is_virtual=False,
+                vjoy_id=0,
+                device_path=""
+            )
+            return DeviceSummary(dummy_device)
+        
         try:
+            import linput
             devices = linput.get_joystick_devices()
             for device in devices:
                 if device.device_guid == guid.uuid:
@@ -326,6 +350,7 @@ class DILL:
         """Convert linput device change to DILL device change and forward."""
         if DILL._device_change_callback:
             try:
+                from linput.types import DeviceActionType as LinputDeviceActionType
                 dill_summary = DeviceSummary(device_summary)
                 # Convert action type
                 if action_type == LinputDeviceActionType.Connected:

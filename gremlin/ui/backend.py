@@ -63,6 +63,7 @@ class UIState(QtCore.QObject):
         self._current_input = {}
         self._current_mode = "Default"
         self._current_tab = "physical"
+        self._is_shutting_down = False
 
         event_handler.EventListener().device_change_event.connect(
             self._device_change
@@ -99,10 +100,24 @@ class UIState(QtCore.QObject):
 
     @Slot(InputIdentifier, int)
     def setCurrentInput(self, input: InputIdentifier, index: int) -> None:
-        value = (input, index)
-        if value != self._current_input.get(input.device_guid, None):
-            self._current_input[input.device_guid] = value
-            self.inputChanged.emit()
+        # Add null check to prevent crashes when input is None
+        if input is None:
+            print("ERROR: setCurrentInput called with None input")
+            return
+        
+        try:
+            value = (input, index)
+            if value != self._current_input.get(input.device_guid, None):
+                self._current_input[input.device_guid] = value
+                self.inputChanged.emit()
+        except AttributeError as e:
+            error_msg = f"AttributeError in setCurrentInput: {e}, input: {input}"
+            print(f"ERROR: {error_msg}")
+            logging.error(error_msg)
+        except Exception as e:
+            error_msg = f"Unexpected error in setCurrentInput: {e}"
+            print(f"ERROR: {error_msg}")
+            logging.error(error_msg)
 
     @Slot(str)
     def setCurrentMode(self, mode_name: str) -> None:
@@ -120,29 +135,54 @@ class UIState(QtCore.QObject):
 
     @Property(str, notify=deviceChanged)
     def currentDevice(self) -> str:
-        return str(self._current_device).upper()
+        try:
+            if self._is_shutting_down:
+                return ""
+            return str(self._current_device).upper()
+        except:
+            return ""
 
     @Property(InputIdentifier, notify=inputChanged)
-    def currentInput(self) -> InputIdentifier:
-        return self._current_input.get(
-            self._current_device,
-            (InputIdentifier(), 0)
-        )[0]
+    def currentInput(self):
+        try:
+            if self._is_shutting_down:
+                return InputIdentifier()
+            return self._current_input.get(
+                self._current_device,
+                (InputIdentifier(), 0)
+            )[0]
+        except:
+            return InputIdentifier()
 
     @Property(int, notify=inputChanged)
     def currentInputIndex(self) -> int:
-        return self._current_input.get(
-            self._current_device,
-            (InputIdentifier(), 0)
-        )[1]
+        try:
+            if self._is_shutting_down:
+                return 0
+            return self._current_input.get(
+                self._current_device,
+                (InputIdentifier(), 0)
+            )[1]
+        except:
+            return 0
 
     @Property(str, notify=modeChanged)
     def currentMode(self) -> str:
-        return self._current_mode
+        try:
+            if self._is_shutting_down:
+                return ""
+            return self._current_mode
+        except:
+            return ""
 
     @Property(str, notify=tabChanged)
     def currentTab(self) -> str:
-        return self._current_tab
+        try:
+            if self._is_shutting_down:
+                return ""
+            return self._current_tab
+        except:
+            return ""
 
     def __str__(self) -> str:
         cur_input = self._current_input.get(
@@ -152,8 +192,11 @@ class UIState(QtCore.QObject):
         return f"{self._current_device} {cur_input[0].input_id} " + \
             f"{cur_input[1]}  {self._current_tab}"
 
+    def shutdown(self):
+        """Mark the UIState as shutting down to prevent QML errors during cleanup."""
+        self._is_shutting_down = True
 
-@common.SingletonDecorator
+
 class Backend(QtCore.QObject):
 
     """Allows interfacing between the QML frontend and the Python backend."""
@@ -177,6 +220,7 @@ class Backend(QtCore.QObject):
         self._mode_hierarchy = ModeHierarchyModel(self.profile.modes, self)
         self.runner = code_runner.CodeRunner()
         self.ui_state = UIState(self)
+        self._is_shutting_down = False
 
         # Hookup various mode change related callbacks
         mm = mode_manager.ModeManager()
@@ -205,6 +249,8 @@ class Backend(QtCore.QObject):
         Returns:
             True if Gremlin is paused, False otherwise.
         """
+        if self._is_shutting_down:
+            return False
         return not event_handler.EventHandler().process_callbacks
 
     @Property(bool, notify=activityChanged)
@@ -214,6 +260,8 @@ class Backend(QtCore.QObject):
         Returns:
             True if a profile is active, False otherwise
         """
+        if self._is_shutting_down:
+            return False
         return self.runner.is_running()
 
     @Slot()
@@ -296,8 +344,8 @@ class Backend(QtCore.QObject):
         Returns:
             Model instance representing the specified InputItem
         """
-        if identifier is None:
-            return
+        if identifier is None or not identifier.isValid:
+            return None
         try:
             item = self.profile.get_input_item(
                 identifier.device_guid,
@@ -309,10 +357,16 @@ class Backend(QtCore.QObject):
             return InputItemModel(item, enumeration_index, self)
         except error.ProfileError as e:
             print(e)
+            return None
 
     @Slot(result=IODeviceManagementModel)
-    def getIODeviceManagementModel(self) -> IODeviceManagementModel:
-        return IODeviceManagementModel(self)
+    def getIODeviceManagementModel(self):
+        try:
+            if self._is_shutting_down:
+                return None
+            return IODeviceManagementModel(self)
+        except:
+            return None
 
     @Slot(str, int, result=bool)
     def isActionExpanded(self, uuid_str: str, index: int) -> bool:
@@ -350,6 +404,8 @@ class Backend(QtCore.QObject):
         Returns:
             List of recently used profiles
         """
+        if self._is_shutting_down:
+            return []
         return config.Configuration().value("global", "internal", "recent_profiles")
 
     @Slot()
@@ -398,16 +454,27 @@ class Backend(QtCore.QObject):
         signal.profileChanged.emit()
 
     @Property(type=ScriptListModel, notify=profileChanged)
-    def scriptListModel(self) -> ScriptListModel:
-        return ScriptListModel(self.profile.scripts, self)
+    def scriptListModel(self):
+        try:
+            if self.profile is None:
+                return None
+            return ScriptListModel(self.profile.scripts, self)
+        except:
+            return None
 
     @Property(type=ModeHierarchyModel, notify=profileChanged)
-    def modeHierarchy(self) -> ModeHierarchyModel:
-        return self._mode_hierarchy
+    def modeHierarchy(self):
+        try:
+            return self._mode_hierarchy if self._mode_hierarchy else None
+        except:
+            return None
 
     @Property(type=str, notify=propertyChanged)
     def currentMode(self) -> str:
-        return mode_manager.ModeManager().current.name
+        try:
+            return mode_manager.ModeManager().current.name
+        except:
+            return ""
 
     @Property(type=str, notify=windowTitleChanged)
     def windowTitle(self) -> str:
@@ -416,10 +483,13 @@ class Backend(QtCore.QObject):
         Returns:
             String to use as window title
         """
-        if self.profile and self.profile.fpath:
-            return self.profile.fpath
-        else:
-            return ""
+        try:
+            if hasattr(self, 'profile') and self.profile and hasattr(self.profile, 'fpath') and self.profile.fpath:
+                return self.profile.fpath
+            else:
+                return "Joystick Gremlin"
+        except (AttributeError, TypeError):
+            return "Joystick Gremlin"
 
     @Property(str, notify=lastErrorChanged)
     def lastError(self) -> str:
@@ -428,6 +498,10 @@ class Backend(QtCore.QObject):
         Returns:
             Last error to occurr
         """
+        try:
+            return getattr(self, '_last_error', "")
+        except (AttributeError, TypeError):
+            return ""
         return self._last_error
 
     def display_error(self, msg: str) -> None:
@@ -498,3 +572,11 @@ class Backend(QtCore.QObject):
             self.display_error(
                 f"Failed to load the profile {fpath} due to:\n\n{e}"
             )
+
+    def shutdown(self):
+        """Mark the backend as shutting down to prevent QML errors during cleanup."""
+        self._is_shutting_down = True
+        if hasattr(self, 'ui_state') and self.ui_state:
+            self.ui_state.shutdown()
+        if hasattr(self, 'runner') and self.runner:
+            self.runner.stop()

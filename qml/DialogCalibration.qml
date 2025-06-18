@@ -60,9 +60,15 @@ Window {
                 implicitContentWidthPolicy: ComboBox.WidestText
 
                 onActivated: () => {
-                    _axisView.model.guid = currentValue
+                    if (currentValue !== undefined) {
+                        _axisView.model.guid = currentValue
+                    }
                 }
-                Component.onCompleted: () => activated(0)
+                Component.onCompleted: () => {
+                    if (count > 0) {
+                        activated(0)
+                    }
+                }
             }
         }
 

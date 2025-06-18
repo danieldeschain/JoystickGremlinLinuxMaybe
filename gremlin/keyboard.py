@@ -8,7 +8,7 @@ keyboard handling, using evdev key codes and our linput backend.
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import evdev
 
@@ -19,7 +19,7 @@ import linput
 class Key:
     """Represents a keyboard key with Linux compatibility."""
     
-    def __init__(self, name: str, linux_keycode: int, scan_code: int = 0, virtual_code: Optional[int] = None):
+    def __init__(self, name: str, linux_keycode: int, scan_code: int = 0, virtual_code: Optional[int] = None, is_extended: bool = False):
         """
         Create a Key instance.
         
@@ -28,12 +28,14 @@ class Key:
             linux_keycode: Linux evdev keycode
             scan_code: Scan code (for compatibility)
             virtual_code: Virtual key code (for Windows compatibility)
+            is_extended: Whether this is an extended key (for Windows compatibility)
         """
         self.name = name
         self.linux_keycode = linux_keycode
         self.scan_code = scan_code
         # For Windows compatibility, use linux_keycode as virtual_code if not specified
         self.virtual_code = virtual_code if virtual_code is not None else linux_keycode
+        self.is_extended = is_extended
 
     def __str__(self) -> str:
         return self.name
@@ -228,6 +230,28 @@ def send_key_press(key: Key, duration: float = 0.05) -> None:
     send_key_up(key)
 
 
+def modifier_keys() -> List[Key]:
+    """Returns a list containing all modifier keys.
+
+    Returns:
+        List with key instances corresponding to modifier keys.
+    """
+    modifier_names = [
+        "leftshift", "rightshift", 
+        "leftctrl", "rightctrl",
+        "leftalt", "rightalt",
+        "leftmeta", "rightmeta"  # Windows key equivalents
+    ]
+    
+    modifiers = []
+    for name in modifier_names:
+        key = key_from_name(name)
+        if key:
+            modifiers.append(key)
+    
+    return modifiers
+
+
 # Common key constants for compatibility
 class KeyCode:
     """Common key code constants."""
@@ -314,7 +338,9 @@ __all__ = [
     "Key",
     "KeyCode", 
     "key_from_code",
+    "key_from_name",
     "send_key_down",
     "send_key_up", 
-    "send_key_press"
+    "send_key_press",
+    "modifier_keys"
 ]

@@ -24,8 +24,14 @@ from typing import Callable, List, Optional
 from PySide6 import QtCore, QtQml
 from PySide6.QtCore import Property, Signal, Slot
 
-from gremlin import device_helpers, event_handler, keyboard, shared_state, \
-    windows_event_hook
+from gremlin import device_helpers, event_handler, keyboard, shared_state
+
+# Import appropriate event hook based on platform
+import platform
+if platform.system() == "Windows":
+    from gremlin import windows_event_hook as event_hook
+else:
+    from gremlin import linux_event_hook as event_hook
 
 from gremlin.types import InputType, MouseButton
 
@@ -109,7 +115,7 @@ class InputListenerModel(QtCore.QObject):
                 InputType.JoystickHat in self._event_types:
             event_listener.joystick_event.connect(self._joy_event_cb)
         elif InputType.Mouse in self._event_types:
-            windows_event_hook.MouseHook().start()
+            event_hook.MouseHook().start()
             event_listener.mouse_event.connect(self._mouse_event_cb)
 
     def _disconnect_listeners(self) -> None:
@@ -129,7 +135,7 @@ class InputListenerModel(QtCore.QObject):
 
         # Stop mouse hook in case it is running
         # FIXME: can this break things?
-        windows_event_hook.MouseHook().stop()
+        event_hook.MouseHook().stop()
 
     def _stop_listening(self) -> None:
         """Stops all listening activities."""
@@ -143,7 +149,7 @@ class InputListenerModel(QtCore.QObject):
         if event.is_pressed and event.event_type == InputType.Keyboard:
             key = keyboard.key_from_code(
                 event.identifier[0],
-                event.identifier[1]
+                event.identifier[0]
             )
             if key == keyboard.key_from_name("esc") and \
                     not self._abort_timer.is_alive():
@@ -216,7 +222,7 @@ class InputListenerModel(QtCore.QObject):
 
         # Ensure the timer is cancelled and reset in case the ESC is released
         # and we're not looking to return keyboard events
-        key = keyboard.key_from_code(event.identifier[0], event.identifier[1])
+        key = keyboard.key_from_code(event.identifier[0])
         if key == keyboard.key_from_name("esc") and not event.is_pressed:
             self._abort_timer.cancel()
             self._abort_timer = threading.Timer(1.0, self._stop_listening)

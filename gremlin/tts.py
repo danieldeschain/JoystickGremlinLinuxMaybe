@@ -16,12 +16,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-This module provides convenient access to the Microsoft SAPI text
-to speech system.
+This module provides convenient access to text to speech systems.
+On Linux, it uses espeak or festival for speech synthesis.
 """
 
 import logging
-import win32com.client
+import subprocess
+import shutil
+import threading
 
 from . import event_handler, util
 
@@ -30,19 +32,47 @@ class TextToSpeech:
 
     def __init__(self):
         """Creates a new instance."""
-        self._speaker = win32com.client.Dispatch("SAPI.SpVoice")
+        # Check for available TTS engines on Linux
+        self._tts_command = None
+        
+        if shutil.which("espeak"):
+            self._tts_command = ["espeak"]
+        elif shutil.which("festival"):
+            self._tts_command = ["festival", "--tts"]
+        elif shutil.which("spd-say"):
+            self._tts_command = ["spd-say"]
+        else:
+            logging.getLogger("system").warning(
+                "No TTS engine found. Install espeak, festival, or speech-dispatcher for text-to-speech support."
+            )
+        
+        # Test the TTS system
         self.speak("")
 
     def speak(self, text):
-        """Queues the given text to be spoken by SAPI using the async flag.
+        """Queues the given text to be spoken using Linux TTS.
 
         Since the text is queued asynchronously this method returns
         immediately.
 
         :param text the text to speak
         """
+        if not text or not self._tts_command:
+            return
+            
         try:
-            self._speaker.Speak(text, 1)
+            # Run TTS in a separate thread to avoid blocking
+            def speak_async():
+                subprocess.run(
+                    self._tts_command + [text],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10
+                )
+            
+            thread = threading.Thread(target=speak_async, daemon=True)
+            thread.start()
+            
         except Exception as e:
             logging.getLogger("system").error(
                 "TTS encountered a problem: {}".format(e)
@@ -53,7 +83,9 @@ class TextToSpeech:
 
         :param value the new volume value
         """
-        self._speaker.Volume = int(util.clamp(value, 0, 100))
+        # Linux TTS volume control would require additional setup
+        # This is a placeholder for compatibility
+        logging.getLogger("system").debug(f"TTS volume setting not implemented on Linux: {value}")
 
     def set_rate(self, value):
         """Sets the speaking speed between -10 and 10.
@@ -63,7 +95,9 @@ class TextToSpeech:
 
         :param value the new speaking rate
         """
-        self._speaker.Rate = int(util.clamp(value, -10, 10))
+        # Linux TTS rate control would require additional setup
+        # This is a placeholder for compatibility
+        logging.getLogger("system").debug(f"TTS rate setting not implemented on Linux: {value}")
 
 
 def text_substitution(text):
@@ -72,6 +106,8 @@ def text_substitution(text):
     :param text the text to substitute parts of
     :return original text with parts substituted
     """
-    eh = event_handler.EventHandler()
-    text = text.replace("${current_mode}", eh.active_mode)
+    # Get current mode from mode manager instead of event handler
+    from . import mode_manager
+    current_mode = mode_manager.ModeManager().get_current_mode()
+    text = text.replace("${current_mode}", current_mode)
     return text

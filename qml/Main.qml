@@ -33,7 +33,7 @@ import "helpers.js" as Helpers
 ApplicationWindow {
 
     // Basic application setup
-    title: backend.windowTitle
+    title: backend ? backend.windowTitle : "Joystick Gremlin"
     width: 1400
     height: 900
     visible: true
@@ -45,7 +45,7 @@ ApplicationWindow {
         title: "An error occurred"
         buttons: MessageDialog.Ok
 
-        text: backend.lastError
+        text: backend ? backend.lastError : ""
 
         onTextChanged: {
             visible = true
@@ -104,11 +104,11 @@ ApplicationWindow {
                 title: qsTr("Recent")
 
                 Repeater {
-                    model: backend.recentProfiles
+                    model: backend ? backend.recentProfiles : []
                     delegate: MenuItem {
                         text: modelData
                         onTriggered: {
-                            backend.loadProfile(modelData)
+                            if (backend) backend.loadProfile(modelData)
                         }
                     }
                 }
@@ -163,19 +163,19 @@ ApplicationWindow {
                 onTriggered: Helpers.createComponent("DialogInputViewer.qml")
             }
             MenuSeparator {}
-            MenuItem {
-                text: qsTr("PDF Cheatsheet")
-                onTriggered: Helpers.createComponent("DialogPDFCheatsheet.qml")
-            }
-            MenuSeparator {}
+            // MenuItem {
+            //     text: qsTr("PDF Cheatsheet")
+            //     onTriggered: Helpers.createComponent("DialogPDFCheatsheet.qml")
+            // }
+            MenuSeparator {            }
             MenuItem {
                 text: qsTr("Options")
                 onTriggered: Helpers.createComponent("DialogOptions.qml")
             }
-            MenuItem {
-                text: qsTr("Log Display")
-                onTriggered: Helpers.createComponent("DialogLogDisplay.qml")
-            }
+            // MenuItem {
+            //     text: qsTr("Log Display")
+            //     onTriggered: Helpers.createComponent("DialogLogDisplay.qml")
+            // }
         }
 
         Menu {
@@ -191,7 +191,7 @@ ApplicationWindow {
     header: ToolBar {
         id: _toolbar
 
-        property ModeHierarchyModel modes : backend.modeHierarchy
+        property ModeHierarchyModel modes : backend ? backend.modeHierarchy : null
 
         RowLayout {
             anchors.fill: parent
@@ -245,7 +245,7 @@ ApplicationWindow {
             }
             ToolButton {
                 icon.source: "qrc:///icons/activate"
-                icon.color: backend.gremlinActive ? "green" : "black"
+                icon.color: (backend && backend.gremlinActive) ? "green" : "black"
 
                 ToolTip {
                     visible: parent.hovered
@@ -309,7 +309,7 @@ ApplicationWindow {
             ComboBox {
                 id: _modeSelector
 
-                model: _toolbar.modes.modeList
+                model: _toolbar.modes ? _toolbar.modes.modeList : []
                 textRole: "name"
 
                 ToolTip {
@@ -354,10 +354,10 @@ ApplicationWindow {
 
                 text: "<B>Status: </B>" +
                     Helpers.selectText(
-                        backend.gremlinActive, "Active", "Not Running"
+                        (backend && backend.gremlinActive), "Active", "Not Running"
                     ) +
                     Helpers.selectText(
-                        backend.gremlinActive & backend.gremlinPaused, " (Paused)", ""
+                        (backend && backend.gremlinActive && backend.gremlinPaused), " (Paused)", ""
                     )
             }
 
@@ -365,7 +365,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 padding: 5
 
-                text: "<B>Current mode: </B>" + backend.currentMode
+                text: "<B>Current mode: </B>" + (backend ? backend.currentMode : "")
             }
         }
     }
@@ -377,7 +377,7 @@ ApplicationWindow {
     Device {
         id: _deviceModel
 
-        guid: uiState.currentDevice
+        guid: uiState ? uiState.currentDevice : "00000000-0000-0000-0000-000000000000"
     }
 
     BootstrapIcons {
@@ -433,7 +433,7 @@ ApplicationWindow {
             DeviceInputList {
                 id: _deviceInputList
 
-                visible: uiState.currentTab === "physical"
+                visible: uiState ? uiState.currentTab === "physical" : false
                 SplitView.minimumWidth: 200
 
                 device: _deviceModel
@@ -443,10 +443,10 @@ ApplicationWindow {
             IntermediateOutputDevice {
                 id: _ioDeviceList
 
-                visible: uiState.currentTab === "intermediate"
+                visible: uiState ? uiState.currentTab === "intermediate" : false
                 SplitView.minimumWidth: 200
 
-                device: backend.getIODeviceManagementModel()
+                device: backend ? backend.getIODeviceManagementModel() : null
 
                 // Trigger a model update on the InputConfiguration
                 onInputIdentifierChanged: () => {
@@ -458,7 +458,7 @@ ApplicationWindow {
             InputConfiguration {
                 id: _inputConfigurationPanel
 
-                visible: uiState.currentTab !== "scripts"
+                visible: uiState ? uiState.currentTab !== "scripts" : true
 
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
@@ -472,12 +472,12 @@ ApplicationWindow {
             Layout.fillHeight: true
             Layout.fillWidth: true
 
-            scriptListModel: backend.scriptListModel
+            scriptListModel: backend ? backend.scriptListModel : null
 
             // Without this the height bugs out
             Layout.verticalStretchFactor: 10
 
-            visible: uiState.currentTab === "scripts"
+            visible: uiState ? uiState.currentTab === "scripts" : false
         }
     }
 

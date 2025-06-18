@@ -219,6 +219,14 @@ class VJoyProxy:
             self._vjoy_to_device_id.clear()
         except Exception as e:
             self._logger.error(f"Error during VJoy cleanup: {e}")
+    
+    @staticmethod
+    def reset():
+        """Reset all VJoy devices (static method for compatibility)."""
+        global _vjoy_proxy_instance
+        if _vjoy_proxy_instance:
+            _vjoy_proxy_instance.cleanup()
+            _vjoy_proxy_instance = None
 
 
 # Create a singleton instance for compatibility with Windows VJoy usage

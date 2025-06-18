@@ -67,7 +67,9 @@ Item {
 
             onCurrentIndexChanged: {
                 inputIndex = currentIndex
-                inputIdentifier = device.inputIdentifier(currentIndex)
+                if (device !== null) {
+                    inputIdentifier = device.inputIdentifier(currentIndex)
+                }
             }
 
             // Make it behave like a sensible scrolling container

@@ -1,0 +1,7 @@
+✅ DILL compatibility layer initialized with linput backend
+Creating backend...
+Backend created: <gremlin.ui.backend.Backend(0x13551a40) at 0x78e474eb84c0>
+Backend profile: <gremlin.profile.Profile object at 0x78e474e96030>
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 7.1.1 LGPL version 2.1 or later
+Setting context properties...
+Context properties set.

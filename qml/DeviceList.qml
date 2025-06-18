@@ -74,7 +74,7 @@ Item {
 
             text: "Intermediate Output"
             width: _metricIO.width + 50
-            checked: uiState.currentTab === "intermediate"
+            checked: uiState ? uiState.currentTab === "intermediate" : false
 
             onClicked: () => {
                 uiState.setCurrentTab("intermediate")
@@ -100,7 +100,7 @@ Item {
 
             text: "Scripts"
             width: _metricScripts.width + 50
-            checked: uiState.currentTab === "scripts"
+            checked: uiState ? uiState.currentTab === "scripts" : false
 
             onClicked: () => { uiState.setCurrentTab("scripts") }
 

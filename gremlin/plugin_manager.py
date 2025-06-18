@@ -145,20 +145,30 @@ class PluginManager:
 
     def _discover_plugins(self, path: Path, is_core: bool):
         """Processes known plugin folders for action plugins."""
-        if not is_core:
+        # Skip if path is empty or doesn't exist
+        if not path or not path.exists() or not path.is_dir():
+            return
+            
+        # Add path to sys.path for both core and non-core plugins
+        if str(path) not in sys.path:
             sys.path.insert(0, str(path))
 
         for root, dirs, files in os.walk(path):
+            # Skip Windows-specific backup directories
+            if "windows_backup" in root or "dill_windows_backup" in root:
+                continue
+                
             for _ in [v for v in files if v == "__init__.py"]:
                 try:
                     # Attempt to load the file and if it looks like a proper
                     # action_plugins store it in the registry
                     module = os.path.split(root)[1]
+                    plugin_module_name = ""
 
                     try:
-                        plugin_module_name = f"{path.name}.{module}"
-                        if not is_core:
-                            plugin_module_name = module
+                        # For core plugins, use the module name directly since the path is in sys.path
+                        # For non-core plugins, also use module name directly
+                        plugin_module_name = module
                         plugin = importlib.import_module(plugin_module_name)
                     except (ModuleNotFoundError, ImportError) as e:
                         logging.getLogger("system").error(

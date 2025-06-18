@@ -371,12 +371,23 @@ class Device(QtCore.QAbstractListModel):
             return str(self._device.device_guid)
 
     def _set_guid(self, guid: str) -> None:
+        # Handle empty or invalid GUID strings
+        if not guid or guid == "":
+            self._device = None
+            return
+            
         if self._device is not None and guid == str(self._device.device_guid):
             return
 
-        self._device = dill.DILL.get_device_information_by_guid(
-            dill.GUID.from_str(guid)
-        )
+        try:
+            self._device = dill.DILL.get_device_information_by_guid(
+                dill.GUID.from_str(guid)
+            )
+        except (dill.DILLError, ValueError) as e:
+            # Handle case where device is not found or GUID is malformed
+            logging.getLogger("system").debug(f"Device with GUID {guid} not found or invalid: {e}")
+            self._device = None
+            return
 
         self._device_mapping = DeviceDatabase().get_mapping(self._device)
         self.deviceChanged.emit()
@@ -437,6 +448,9 @@ class Device(QtCore.QAbstractListModel):
             An InputIdentifier instance referring to the input item with
             the given index.
         """
+        if self._device is None:
+            return InputIdentifier(parent=self)
+            
         identifier = InputIdentifier(parent=self)
         identifier.device_guid = self._device.device_guid.uuid
         input_info = self._convert_index(index)
@@ -457,6 +471,9 @@ class Device(QtCore.QAbstractListModel):
             return input_name
 
     def _convert_index(self, index: int) -> Tuple[InputType, int]:
+        if self._device is None:
+            return (InputType.JoystickAxis, 0)
+            
         axis_count = self._device.axis_count
         button_count = self._device.button_count
         hat_count = self._device.hat_count
@@ -508,17 +525,37 @@ class IODeviceManagementModel(QtCore.QAbstractListModel):
 
     @Slot(str)
     def createInput(self, type_str: str) -> None:
-        self.beginInsertRows(
-            QtCore.QModelIndex(),
-            self.rowCount(),
-            self.rowCount()
-        )
-        self._io.create(InputType.to_enum(type_str))
-        self.endInsertRows()
-        self.dataChanged.emit(
-            self.createIndex(0, 0),
-            self.createIndex(self.rowCount(), 0)
-        )
+        try:
+            logging.getLogger("system").debug(f"createInput called with type_str: '{type_str}'")
+            self.beginInsertRows(
+                QtCore.QModelIndex(),
+                self.rowCount(),
+                self.rowCount()
+            )
+            logging.getLogger("system").debug(f"About to call InputType.to_enum('{type_str}')")
+            input_type = InputType.to_enum(type_str)
+            logging.getLogger("system").debug(f"InputType.to_enum returned: {input_type}")
+            
+            logging.getLogger("system").debug(f"About to call self._io.create({input_type})")
+            self._io.create(input_type)
+            logging.getLogger("system").debug(f"Successfully created input of type {input_type}")
+            
+            logging.getLogger("system").debug(f"About to call endInsertRows()")
+            self.endInsertRows()
+            logging.getLogger("system").debug(f"endInsertRows() completed")
+            
+            logging.getLogger("system").debug(f"About to emit dataChanged signal")
+            self.dataChanged.emit(
+                self.createIndex(0, 0),
+                self.createIndex(self.rowCount(), 0)
+            )
+            logging.getLogger("system").debug(f"dataChanged signal emitted")
+            logging.getLogger("system").debug(f"createInput completed successfully")
+        except Exception as e:
+            logging.getLogger("system").error(f"Error in createInput: {e}")
+            import traceback
+            logging.getLogger("system").error(f"Traceback: {traceback.format_exc()}")
+            raise
 
     @Slot(str, str)
     def changeName(self, old_labele: str, new_label: str) -> None:
@@ -810,10 +847,15 @@ class VJoyDevices(QtCore.QObject):
 
     @Property(type="QVariantList", notify=deviceModelChanged)
     def deviceModel(self):
+        if not self._devices:
+            return []
         return [self._device_name(dev) for dev in self._devices]
 
     @Property(type="QVariantList", notify=inputModelChanged)
     def inputModel(self):
+        if not self._devices or self._current_vjoy_index >= len(self._devices):
+            return []
+            
         input_count = {
             InputType.JoystickAxis: lambda x: x.axis_count,
             InputType.JoystickButton: lambda x: x.button_count,
@@ -881,10 +923,9 @@ class VJoyDevices(QtCore.QObject):
             self.inputModelChanged.emit()
 
     def _get_vjoy_id(self) -> int:
-        if not self._is_state_valid():
-            raise GremlinError(
-                "Attempted to read from invalid VJoyDevices instance."
-            )
+        if not self._is_state_valid() or not self._devices or self._current_vjoy_index >= len(self._devices):
+            # Return a default VJoy ID instead of raising an error when no devices exist
+            return 1
         return self._devices[self._current_vjoy_index].vjoy_id
 
     def _get_vjoy_index(self) -> int:

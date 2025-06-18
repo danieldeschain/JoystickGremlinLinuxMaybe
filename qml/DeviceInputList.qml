@@ -58,10 +58,12 @@ Item {
         delegate: _deviceDelegate
 
         onCurrentIndexChanged: {
-            uiState.setCurrentInput(
-                device.inputIdentifier(currentIndex),
-                currentIndex
-            )
+            if (device !== null) {
+                uiState.setCurrentInput(
+                    device.inputIdentifier(currentIndex),
+                    currentIndex
+                )
+            }
         }
 
         // Make it behave like a sensible scrolling container

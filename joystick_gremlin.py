@@ -54,6 +54,7 @@ os.environ["QT_QUICK_CONTROLS_UNIVERSAL_THEME"] = "Light"
 
 # Path mangling to ensure Gremlin can run indepent of the CWD and
 # ensure configuration folder is created in time
+import gremlin
 import gremlin.util
 sys.path.insert(0, gremlin.util.userprofile_path())
 gremlin.util.setup_userprofile()
@@ -99,6 +100,7 @@ def exception_hook(exception_type, value, trace) -> None:
     """
     msg = "Uncaught exception:\n"
     msg += " ".join(traceback.format_exception(exception_type, value, trace))
+    print(f"CRASH ERROR: {msg}")  # Print to stdout as well as logging
     logging.getLogger("system").error(msg)
     gremlin.util.display_error(msg)
 
@@ -108,10 +110,6 @@ def shutdown_cleanup() -> None:
     # Terminate potentially running EventListener loop
     event_listener = gremlin.event_handler.EventListener()
     event_listener.terminate()
-
-    # Terminate profile runner
-    backend = gremlin.ui.backend.Backend()
-    backend.runner.stop()
 
     # Clean up Linux input/output devices
     linput.shutdown()
@@ -144,6 +142,14 @@ def register_config_options() -> None:
 
 
 def make_gremlin_app(argv):
+    # Import all gremlin modules needed in this function
+    import gremlin.util
+    import gremlin.device_initialization 
+    import gremlin.event_handler
+    import gremlin.ui.backend
+    import gremlin.signal
+    import gremlin.plugin_manager
+    
     # Parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -180,11 +186,9 @@ def make_gremlin_app(argv):
     # Setup the configuration system
     register_config_options()
 
-    # Show unhandled exceptions to the user when running a compiled version
-    # of Joystick Gremlin
-    executable_name = os.path.split(sys.executable)[-1]
-    if executable_name == "joystick_gremlin.exe":
-        sys.excepthook = exception_hook
+    # Show unhandled exceptions to the user 
+    # Enable for all cases to help with debugging crashes
+    sys.excepthook = exception_hook
 
 
     # +-------------------------------------------------------------------------
@@ -219,7 +223,17 @@ def make_gremlin_app(argv):
 
     # Ensure joystick devices are correctly setup
     linput.initialize()
+    
+    # Initialize DILL compatibility layer
+    import dill
+    dill.initialize()
+    
     gremlin.device_initialization.joystick_devices_initialization()
+    
+    # Initialize event handling
+    import gremlin.event_handler
+    event_handler_instance = gremlin.event_handler.global_event_handler()
+    event_handler_instance.start_listening()
 
     # Create application and UI engine
     engine = QtQml.QQmlApplicationEngine(parent=app)
@@ -242,11 +256,16 @@ def make_gremlin_app(argv):
     # +-------------------------------------------------------------------------
 
     # Create and register backend and signal objects
+    print("Creating backend...")
     backend = gremlin.ui.backend.Backend(engine)
+    print(f"Backend created: {backend}")
+    print(f"Backend profile: {backend.profile}")
     backend.newProfile()
+    print("Setting context properties...")
     engine.rootContext().setContextProperty("backend", backend)
     engine.rootContext().setContextProperty("uiState", backend.ui_state)
     engine.rootContext().setContextProperty("signal", gremlin.signal.signal)
+    print("Context properties set.")
 
     # Load plugin code and UI elements
     syslog.info("Initializing plugins")
@@ -321,7 +340,22 @@ def make_gremlin_app(argv):
 
     # Run UI
     syslog.info("Gremlin UI launching")
-    app.aboutToQuit.connect(shutdown_cleanup)
+    
+    # Store references for cleanup
+    def cleanup_before_quit():
+        """Clean up QML context properties before shutdown to prevent null reference errors."""
+        try:
+            # Mark backend as shutting down so properties return safe values
+            nonlocal backend
+            backend.shutdown()
+                
+        except Exception as e:
+            syslog.error(f"Error during QML cleanup: {e}")
+        
+        # Now do the regular cleanup
+        shutdown_cleanup()
+    
+    app.aboutToQuit.connect(cleanup_before_quit)
     return app
 
 

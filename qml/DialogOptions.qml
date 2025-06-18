@@ -53,7 +53,9 @@ Window {
             delegate: ConfigSectionButton {}
 
             Component.onCompleted: () => {
-                itemAtIndex(0).toggle()
+                if (count > 0 && itemAtIndex(0)) {
+                    itemAtIndex(0).toggle()
+                }
             }
         }
 
