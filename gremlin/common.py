@@ -17,8 +17,17 @@
 
 
 from gremlin import error
-from gremlin.keyboard import key_from_code
+# from gremlin.keyboard import key_from_code  # TODO: Replace with Linux equivalent
 from gremlin.types import InputType, AxisNames
+
+# Temporary placeholder for Linux compatibility
+class TempKey:
+    def __init__(self, code):
+        self.name = f"Key_{code}"
+
+def key_from_code(code):
+    """Temporary placeholder - needs Linux implementation"""
+    return TempKey(code)
 
 
 class SingletonDecorator:
