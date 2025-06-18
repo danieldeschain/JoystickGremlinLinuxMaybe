@@ -117,7 +117,7 @@ class LinuxVirtualDevice:
             ]
             
             for i in range(min(self.axis_count, len(axis_events))):
-                events.append((axis_events[i], (-32768, 32767, 0, 0)))
+                events.append(axis_events[i] + (-32768, 32767, 0, 0))
                 self._axis_values[i + 1] = 0.0
             
             # Add buttons
@@ -134,14 +134,12 @@ class LinuxVirtualDevice:
             
             # Add hat switches (D-pads)
             hat_events = [
-                (uinput.ABS_HAT0X, (-1, 1, 0, 0)),
-                (uinput.ABS_HAT0Y, (-1, 1, 0, 0)),
-                (uinput.ABS_HAT1X, (-1, 1, 0, 0)), 
-                (uinput.ABS_HAT1Y, (-1, 1, 0, 0)),
+                uinput.ABS_HAT0X, uinput.ABS_HAT0Y,
+                uinput.ABS_HAT1X, uinput.ABS_HAT1Y,
             ]
             
             for i in range(min(self.hat_count * 2, len(hat_events))):
-                events.append(hat_events[i])
+                events.append(hat_events[i] + (-1, 1, 0, 0))
             
             for i in range(self.hat_count):
                 self._hat_states[i + 1] = (0, 0)
