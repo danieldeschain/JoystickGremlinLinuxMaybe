@@ -27,8 +27,7 @@ import Gremlin.Device
 import Gremlin.Profile
 
 
-// Render all detected devices using a TabBar while also displaying the
-// Intermediate output tab
+// Render all detected devices using a TabBar
 Item {
     id: _root
 
@@ -52,7 +51,7 @@ Item {
 
                 text: name
                 width: _metric.width + 50
-                checked: uiState.currentTab === "physical" &&
+                checked: uiState && uiState.currentTab === "physical" &&
                     uiState.currentDevice === model.guid
 
                 onClicked: () => {
@@ -66,49 +65,6 @@ Item {
                     font: _button.font
                     text: _button.text
                 }
-            }
-        }
-
-        JGTabButton {
-            id: _ioButton
-
-            text: "Intermediate Output"
-            width: _metricIO.width + 50
-            checked: uiState ? uiState.currentTab === "intermediate" : false
-
-            onClicked: () => {
-                uiState.setCurrentTab("intermediate")
-                uiState.setCurrentDevice("f0af472f-8e17-493b-a1eb-7333ee8543f2")
-            }
-
-            TextMetrics {
-                id: _metricIO
-
-                font: _ioButton.font
-                text: _ioButton.text
-            }
-        }
-
-        // Empty item to push the script tab to the right
-        JGTabButton {
-            Layout.fillWidth: true
-            height: 0
-        }
-
-        JGTabButton {
-            id: _scriptButton
-
-            text: "Scripts"
-            width: _metricScripts.width + 50
-            checked: uiState ? uiState.currentTab === "scripts" : false
-
-            onClicked: () => { uiState.setCurrentTab("scripts") }
-
-            TextMetrics {
-                id: _metricScripts
-
-                font: _scriptButton.font
-                text: _scriptButton.text
             }
         }
 

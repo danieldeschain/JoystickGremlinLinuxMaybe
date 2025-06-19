@@ -26,11 +26,13 @@ from PySide6 import QtCore, QtQml, QtGui
 from PySide6.QtCore import Property, Signal, Slot
 
 import linput
+from linput.types import UUID_Intermediate_Output
 
 from gremlin import code_runner, common, config, device_initialization, error, \
     event_handler, mode_manager, profile, shared_state, types
 from gremlin.intermediate_output import IntermediateOutput
 from gremlin.signal import signal
+from gremlin.virtual_joystick_manager import VirtualJoystickManager, VirtualJoystickPermissionError
 
 from gremlin.ui.device import InputIdentifier, IODeviceManagementModel
 from gremlin.ui.profile import InputItemModel, ModeHierarchyModel
@@ -75,10 +77,12 @@ class UIState(QtCore.QObject):
         if self._current_tab != "physical":
             return
 
-        devices = device_initialization.physical_devices()
+        devices = device_initialization.joystick_devices()
+        # Filter out intermediate output device to prevent it from appearing as a tab
+        devices = [dev for dev in devices if dev.device_guid != UUID_Intermediate_Output]
         selection_valid = False
         for dev in devices:
-            if dev.device_guid.uuid == self._current_device:
+            if dev.device_guid == self._current_device:
                 selection_valid = True
                 break
 
@@ -221,6 +225,17 @@ class Backend(QtCore.QObject):
         self.runner = code_runner.CodeRunner()
         self.ui_state = UIState(self)
         self._is_shutting_down = False
+
+        # Initialize virtual joystick manager
+        self._virtual_joystick_manager = VirtualJoystickManager()
+        
+        # Check virtual joystick permissions and log status
+        permission_status = self._virtual_joystick_manager.get_permission_status()
+        if not permission_status['can_create_devices']:
+            logging.warning("Virtual joystick creation not available due to permission issues")
+            recommendations = self._virtual_joystick_manager.get_permission_recommendations()
+            for rec in recommendations:
+                logging.info(f"Recommendation: {rec}")
 
         # Hookup various mode change related callbacks
         mm = mode_manager.ModeManager()
@@ -572,6 +587,400 @@ class Backend(QtCore.QObject):
             self.display_error(
                 f"Failed to load the profile {fpath} due to:\n\n{e}"
             )
+
+    @Slot()
+    def createOneToOneMapping(self) -> None:
+        """Creates a 1:1 mapping for all inputs of the current device."""
+        try:
+            # Get the current device
+            current_device_guid = self.ui_state.currentDevice
+            if current_device_guid == str(linput.UUID_Invalid):
+                self.display_error("No device selected for 1:1 mapping")
+                return
+                
+            # This matches the Windows implementation exactly
+            from gremlin import plugin_manager, common
+            import uuid
+            
+            device_guid = uuid.UUID(current_device_guid)
+            
+            # Find device profile in current profile
+            device_profile = None
+            for dev_guid, dev_profile in self.profile.devices.items():
+                if dev_guid == device_guid:
+                    device_profile = dev_profile
+                    break
+                    
+            if not device_profile:
+                self.display_error("Device not found in current profile")
+                return
+                
+            if device_profile.type != gremlin.profile.DeviceType.Joystick:
+                self.display_error("Selected device is not a joystick")
+                return
+                
+            container_plugins = plugin_manager.ContainerPlugins()
+            action_plugins = plugin_manager.ActionPlugins()
+            
+            current_mode = self.ui_state.currentMode
+            mode = device_profile.modes[current_mode]
+            input_types = [
+                common.InputType.JoystickAxis,
+                common.InputType.JoystickButton, 
+                common.InputType.JoystickHat
+            ]
+            type_name = {
+                common.InputType.JoystickAxis: 'axis',
+                common.InputType.JoystickButton: 'button',
+                common.InputType.JoystickHat: 'hat'
+            }
+            
+            main_profile = device_profile.parent
+            for input_type in input_types:
+                for entry in mode.config[input_type].values():
+                    item_list = main_profile.list_unused_vjoy_inputs()
+                    container = container_plugins.repository['basic'](entry)
+                    action = action_plugins.repository['remap'](container)
+                    action.input_type = input_type
+                    action.vjoy_device_id = 1
+                    
+                    if len(item_list[1][type_name[input_type]]) > 0:
+                        action.vjoy_input_id = item_list[1][type_name[input_type]][0]
+                    else:
+                        action.vjoy_input_id = 1
+                        
+                    container.add_action(action)
+                    entry.containers.append(container)
+            
+            # Signal UI update
+            self.profileChanged.emit()
+            signal.reloadUi.emit()
+            
+        except Exception as e:
+            self.display_error(f"Failed to create 1:1 mapping: {str(e)}")
+    
+    @Slot()
+    def modifyProfile(self) -> None:
+        """Opens the modify profile dialog."""
+        try:
+            # TODO: Implement modify profile functionality
+            # This should open a dialog to modify profile metadata
+            self.display_error("Modify profile functionality is not yet implemented")
+            
+        except Exception as e:
+            self.display_error(f"Failed to modify profile: {str(e)}")
+    
+    @Slot()
+    def openInputRepeater(self) -> None:
+        """Opens the Input Repeater dialog."""
+        try:
+            # TODO: Implement input repeater functionality
+            # This should open a dialog for repeating input sequences
+            self.display_error("Input Repeater functionality is not yet implemented")
+            
+        except Exception as e:
+            self.display_error(f"Failed to open Input Repeater: {str(e)}")
+    
+    @Slot()
+    def openMergeAxisDialog(self) -> None:
+        """Opens the Merge Axis configuration dialog."""
+        try:
+            # The dialog is now implemented in QML
+            # It will be opened via Helpers.createComponent in Main.qml
+            pass
+            
+        except Exception as e:
+            self.display_error(f"Failed to open Merge Axis dialog: {str(e)}")
+            
+    @Slot(str, int, int)
+    def applyMergeAxisConfiguration(self, operation: str, vjoy_device: int, vjoy_axis: int) -> None:
+        """Applies a merge axis configuration."""
+        try:
+            # TODO: Implement actual merge axis configuration logic
+            # This should integrate with the merge axis action plugin system
+            self.display_error(f"Applied merge configuration: {operation} to vJoy {vjoy_device} axis {vjoy_axis}")
+            
+        except Exception as e:
+            self.display_error(f"Failed to apply merge axis configuration: {str(e)}")
+    
+    @Slot()
+    def openSwapDevicesDialog(self) -> None:
+        """Opens the Swap Devices configuration dialog."""
+        try:
+            # The dialog is now implemented in QML
+            # It will be opened via Helpers.createComponent in Main.qml
+            pass
+            
+        except Exception as e:
+            self.display_error(f"Failed to open Swap Devices dialog: {str(e)}")
+            
+    @Slot(str, str)
+    def swapDeviceConfigurations(self, device1_guid: str, device2_guid: str) -> None:
+        """Swaps the configuration between two devices in the profile."""
+        try:
+            import uuid
+            
+            if not self._profile:
+                self.display_error("No profile loaded")
+                return
+                
+            # Convert string GUIDs to UUID objects
+            guid1 = uuid.UUID(device1_guid)
+            guid2 = uuid.UUID(device2_guid)
+            
+            # Check if both devices exist in the profile
+            if guid1 not in self._profile.devices:
+                self.display_error(f"Device {device1_guid} not found in profile")
+                return
+                
+            if guid2 not in self._profile.devices:
+                self.display_error(f"Device {device2_guid} not found in profile")
+                return
+                
+            # Swap the device configurations
+            device1_config = self._profile.devices[guid1]
+            device2_config = self._profile.devices[guid2]
+            
+            # Store the original device names to preserve them
+            device1_name = device1_config.name
+            device2_name = device2_config.name
+            
+            # Swap all modes between devices
+            temp_modes = device1_config.modes
+            device1_config.modes = device2_config.modes
+            device2_config.modes = temp_modes
+            
+            # Restore original device names (don't swap names, only configurations)
+            device1_config.name = device1_name
+            device2_config.name = device2_name
+            
+            # Mark profile as modified
+            self._profile.is_modified = True
+            
+            # Emit signal to update UI
+            self.profile_changed.emit()
+            
+            logging.info(f"Swapped configurations between devices {device1_name} and {device2_name}")
+            
+        except Exception as e:
+            self.display_error(f"Failed to swap device configurations: {str(e)}")
+    
+    @Slot()
+    def generatePDFCheatsheet(self) -> None:
+        """Generates a PDF cheatsheet of the current profile."""
+        try:
+            from gremlin import cheatsheet
+            import tempfile
+            import os
+            
+            if not self.profile:
+                self.display_error("No profile loaded to generate cheatsheet from")
+                return
+                
+            # Generate PDF cheatsheet
+            temp_dir = tempfile.gettempdir()
+            pdf_path = os.path.join(temp_dir, "joystick_gremlin_cheatsheet.pdf")
+            
+            cheatsheet.generate_cheatsheet(pdf_path, self.profile)
+            
+            # Open the PDF with the default system application
+            if os.path.exists(pdf_path):
+                import subprocess
+                subprocess.run(["xdg-open", pdf_path], check=False)
+            else:
+                self.display_error("Failed to generate PDF file")
+                
+        except Exception as e:
+            self.display_error(f"Failed to generate PDF cheatsheet: {str(e)}")
+    
+    @Slot()
+    def openLogDisplay(self) -> None:
+        """Opens the log display dialog."""
+        try:
+            # TODO: Implement log display dialog
+            # This should show system and user logs in a dialog
+            self.display_error("Log Display dialog is not yet implemented")
+            
+        except Exception as e:
+            self.display_error(f"Failed to open Log Display: {str(e)}")
+
+    @Slot()
+    def openMergeAxis(self) -> None:
+        """Opens the merge axis dialog."""
+        try:
+            # The QML dialog should handle the UI, this method is called when it opens
+            logging.info("Merge axis dialog opened")
+            
+        except Exception as e:
+            self.display_error(f"Failed to open merge axis dialog: {str(e)}")
+
+    @Slot()
+    def openSwapDevices(self) -> None:
+        """Opens the swap devices dialog."""
+        try:
+            # The QML dialog should handle the UI, this method is called when it opens
+            logging.info("Swap devices dialog opened")
+            
+        except Exception as e:
+            self.display_error(f"Failed to open swap devices dialog: {str(e)}")
+
+    @Slot()
+    def toggleInputRepeater(self, enabled: bool) -> None:
+        """Toggles the input repeater functionality."""
+        try:
+            if not hasattr(self, 'repeater'):
+                # Initialize repeater if not exists
+                from gremlin import repeater
+                self.repeater = repeater.Repeater([], self._update_repeater_status)
+            
+            # Get event listener
+            from gremlin import event_handler
+            el = event_handler.EventListener()
+            
+            if enabled:
+                # Connect events to repeater
+                el.keyboard_event.connect(self.repeater.process_event)
+                el.joystick_event.connect(self.repeater.process_event)
+                self._update_repeater_status("Waiting for input")
+                logging.info("Input repeater enabled")
+            else:
+                # Disconnect events from repeater
+                try:
+                    el.keyboard_event.disconnect(self.repeater.process_event)
+                    el.joystick_event.disconnect(self.repeater.process_event)
+                except:
+                    pass  # Ignore if not connected
+                self.repeater.stop()
+                self._update_repeater_status("")
+                logging.info("Input repeater disabled")
+                
+        except Exception as e:
+            self.display_error(f"Failed to toggle input repeater: {str(e)}")
+
+    def _update_repeater_status(self, message: str) -> None:
+        """Updates the repeater status message."""
+        # TODO: Update status bar or emit signal for QML to display status
+        logging.info(f"Repeater status: {message}")
+
+    # Virtual Joystick Management Methods
+    
+    @Slot(result=bool)
+    def canCreateVirtualJoysticks(self) -> bool:
+        """Check if virtual joysticks can be created."""
+        return self._virtual_joystick_manager.get_permission_status()['can_create_devices']
+    
+    @Slot(result=list)
+    def getVirtualJoystickPermissionStatus(self) -> list:
+        """Get virtual joystick permission status and recommendations."""
+        status = self._virtual_joystick_manager.get_permission_status()
+        recommendations = self._virtual_joystick_manager.get_permission_recommendations()
+        
+        return [
+            {
+                'status': status,
+                'recommendations': recommendations
+            }
+        ]
+    
+    @Slot(str, int, int, int, result=int)
+    def createVirtualJoystick(self, name: str, axis_count: int = 4, button_count: int = 8, hat_count: int = 1) -> int:
+        """Create a new virtual joystick device.
+        
+        Args:
+            name: Name for the virtual device
+            axis_count: Number of axes (default 4)
+            button_count: Number of buttons (default 8)
+            hat_count: Number of hat switches (default 1)
+            
+        Returns:
+            Device ID for the created device, or -1 if failed
+        """
+        try:
+            logging.info(f"🎮 Creating virtual joystick '{name}' with {axis_count} axes, {button_count} buttons, {hat_count} hats")
+            
+            device_id = self._virtual_joystick_manager.create_virtual_joystick(
+                name, axis_count, button_count, hat_count
+            )
+            logging.info(f"🎮 Created virtual joystick '{name}' with ID {device_id}")
+            
+            # Schedule device list refresh and UI update after a delay
+            # This allows time for the system to register the virtual device
+            logging.info("🎮 Scheduling delayed refresh in 1000ms...")
+            QtCore.QTimer.singleShot(1000, self._refresh_device_list)
+            
+            return device_id
+            
+        except VirtualJoystickPermissionError as e:
+            self.display_error(f"Permission error creating virtual joystick: {str(e)}")
+            return -1
+        except Exception as e:
+            self.display_error(f"Failed to create virtual joystick: {str(e)}")
+            logging.error(f"Exception creating virtual joystick: {e}")
+            import traceback
+            traceback.print_exc()
+            return -1
+    
+    @Slot(int, result=bool)
+    def destroyVirtualJoystick(self, device_id: int) -> bool:
+        """Destroy a virtual joystick device."""
+        try:
+            success = self._virtual_joystick_manager.destroy_virtual_joystick(device_id)
+            if success:
+                logging.info(f"Destroyed virtual joystick ID {device_id}")
+                
+                # Schedule device list refresh and UI update after a delay
+                QtCore.QTimer.singleShot(1000, self._refresh_device_list)
+                
+            else:
+                logging.warning(f"Failed to destroy virtual joystick ID {device_id}")
+            return success
+            
+        except Exception as e:
+            self.display_error(f"Error destroying virtual joystick: {str(e)}")
+            return False
+    
+    def _refresh_device_list(self):
+        """Refresh the device list and trigger UI updates."""
+        try:
+            logging.info("🔄 Starting device list refresh...")
+            
+            # Force device reinitialization
+            device_initialization.joystick_devices_initialization()
+            devices = device_initialization.joystick_devices()
+            logging.info(f"🔄 Device refresh found {len(devices)} devices:")
+            for i, dev in enumerate(devices):
+                logging.info(f"  {i}: {dev.name} (Virtual: {dev.is_virtual})")
+            
+            # Trigger device change event to update UI
+            event_handler.EventListener().device_change_event.emit()
+            logging.info("🔄 Device change event emitted")
+            
+        except Exception as e:
+            logging.error(f"Failed to refresh device list: {e}")
+            import traceback
+            traceback.print_exc()
+
+    @Slot(result=list)
+    def listVirtualJoysticks(self) -> list:
+        """List all created virtual joysticks."""
+        try:
+            devices = self._virtual_joystick_manager.list_virtual_joysticks()
+            result = []
+            
+            for device_id, device_summary in devices:
+                result.append({
+                    'id': device_id,
+                    'name': device_summary.name,
+                    'axis_count': device_summary.axis_count,
+                    'button_count': device_summary.button_count,
+                    'hat_count': device_summary.hat_count
+                })
+            
+            return result
+            
+        except Exception as e:
+            self.display_error(f"Error listing virtual joysticks: {str(e)}")
+            return []
 
     def shutdown(self):
         """Mark the backend as shutting down to prevent QML errors during cleanup."""

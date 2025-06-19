@@ -38,6 +38,7 @@ from gremlin.error import GremlinError
 from gremlin.intermediate_output import IntermediateOutput
 from gremlin.signal import signal
 from gremlin.types import InputType, PropertyType
+from linput.types import UUID_Intermediate_Output
 
 
 
@@ -246,8 +247,34 @@ class DeviceListModel(QtCore.QAbstractListModel):
         QtCore.Qt.UserRole + 8: QtCore.QByteArray("joy_id".encode()),
     }
 
+    @staticmethod
+    def _clean_device_name(device) -> str:
+        """Clean up device names for better display, especially VKB devices."""
+        name = device.name
+        
+        # Special handling for VKB devices
+        if "VKBsim" in name:
+            # Extract just the "VKBsim Gladiator NXT L/R" part
+            parts = name.split()
+            vkb_parts = []
+            start_capture = False
+            for part in parts:
+                if part == "VKBsim":
+                    start_capture = True
+                if start_capture:
+                    vkb_parts.append(part)
+                    # Stop after capturing "VKBsim Gladiator NXT L" or "VKBsim Gladiator NXT R"
+                    if part in ["L", "R"] and len(vkb_parts) >= 4:
+                        break
+            
+            if vkb_parts:
+                return " ".join(vkb_parts)
+        
+        # For other devices, return the original name
+        return name
+
     role_query = {
-        "name": lambda dev: dev.name,
+        "name": lambda dev: DeviceListModel._clean_device_name(dev),
         "axes": lambda dev: dev.axis_count,
         "buttons": lambda dev: dev.button_count,
         "hats": lambda dev: dev.hat_count,
@@ -259,16 +286,23 @@ class DeviceListModel(QtCore.QAbstractListModel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._devices = device_initialization.physical_devices()
+        # Use all devices (physical + virtual) and filter out intermediate output
+        self._devices = [dev for dev in device_initialization.joystick_devices() 
+                        if dev.device_guid != UUID_Intermediate_Output]
 
-        event_handler.EventListener().device_change_event.connect(
-            self.update_model
-        )
+        el = event_handler.EventListener()
+        el.device_change_event.connect(self.update_model)
+        
+        # Ensure the EventListener is started (it's a singleton, so this is safe to call multiple times)
+        if not el._is_running:
+            el.start()
 
     def update_model(self) -> None:
         """Updates the model if the connected devices change."""
         old_count = len(self._devices)
-        self._devices = device_initialization.physical_devices()
+        # Use all devices (physical + virtual) and filter out intermediate output
+        self._devices = [dev for dev in device_initialization.joystick_devices() 
+                        if dev.device_guid != UUID_Intermediate_Output]
         new_count = len(self._devices)
 
         # Ensure the entire model is refreshed
@@ -309,12 +343,16 @@ class DeviceListModel(QtCore.QAbstractListModel):
         Args:
             types: the type of devices to list
         """
+        devices = []
         if types == "physical":
-            self._devices = device_initialization.physical_devices()
+            devices = device_initialization.physical_devices()
         elif types == "virtual":
-            self._devices = device_initialization.vjoy_devices()
+            devices = device_initialization.vjoy_devices()
         elif types == "all":
-            self._devices = device_initialization.joystick_devices()
+            devices = device_initialization.joystick_devices()
+        
+        # Filter out intermediate output device from all device types
+        self._devices = [dev for dev in devices if dev.device_guid != UUID_Intermediate_Output]
 
         # Remove everything and then add it back to force a model update
         new_count = len(self._devices)
@@ -525,37 +563,68 @@ class IODeviceManagementModel(QtCore.QAbstractListModel):
 
     @Slot(str)
     def createInput(self, type_str: str) -> None:
+        """Create a new input in a Qt-safe manner using deferred execution."""
         try:
             logging.getLogger("system").debug(f"createInput called with type_str: '{type_str}'")
-            self.beginInsertRows(
-                QtCore.QModelIndex(),
-                self.rowCount(),
-                self.rowCount()
-            )
-            logging.getLogger("system").debug(f"About to call InputType.to_enum('{type_str}')")
-            input_type = InputType.to_enum(type_str)
-            logging.getLogger("system").debug(f"InputType.to_enum returned: {input_type}")
             
-            logging.getLogger("system").debug(f"About to call self._io.create({input_type})")
-            self._io.create(input_type)
-            logging.getLogger("system").debug(f"Successfully created input of type {input_type}")
+            # Use QTimer.singleShot to defer the actual creation to avoid Qt threading issues
+            QtCore.QTimer.singleShot(0, lambda: self._doCreateInput(type_str))
             
-            logging.getLogger("system").debug(f"About to call endInsertRows()")
-            self.endInsertRows()
-            logging.getLogger("system").debug(f"endInsertRows() completed")
-            
-            logging.getLogger("system").debug(f"About to emit dataChanged signal")
-            self.dataChanged.emit(
-                self.createIndex(0, 0),
-                self.createIndex(self.rowCount(), 0)
-            )
-            logging.getLogger("system").debug(f"dataChanged signal emitted")
-            logging.getLogger("system").debug(f"createInput completed successfully")
         except Exception as e:
             logging.getLogger("system").error(f"Error in createInput: {e}")
             import traceback
             logging.getLogger("system").error(f"Traceback: {traceback.format_exc()}")
             raise
+    
+    def _doCreateInput(self, type_str: str) -> None:
+        """Actually perform the input creation in a deferred manner."""
+        try:
+            logging.getLogger("system").debug(f"_doCreateInput called with type_str: '{type_str}'")
+            
+            # Validate the type string first
+            logging.getLogger("system").debug(f"About to call InputType.to_enum('{type_str}')")
+            input_type = InputType.to_enum(type_str)
+            logging.getLogger("system").debug(f"InputType.to_enum returned: {input_type}")
+            
+            # Get current row count before modification
+            old_row_count = self.rowCount()
+            logging.getLogger("system").debug(f"Current row count: {old_row_count}")
+            
+            # Create the intermediate output first (outside of Qt model operations)
+            logging.getLogger("system").debug(f"About to call self._io.create({input_type})")
+            self._io.create(input_type)
+            logging.getLogger("system").debug(f"Successfully created input of type {input_type}")
+            
+            # Now notify Qt about the model change
+            logging.getLogger("system").debug(f"About to call beginInsertRows")
+            self.beginInsertRows(
+                QtCore.QModelIndex(),
+                old_row_count,
+                old_row_count
+            )
+            logging.getLogger("system").debug(f"beginInsertRows completed")
+            
+            logging.getLogger("system").debug(f"About to call endInsertRows()")
+            self.endInsertRows()
+            logging.getLogger("system").debug(f"endInsertRows() completed")
+            
+            # Force a full model reset to be safe
+            logging.getLogger("system").debug(f"About to emit layoutChanged signal")
+            self.layoutChanged.emit()
+            logging.getLogger("system").debug(f"layoutChanged signal emitted")
+            
+            logging.getLogger("system").debug(f"_doCreateInput completed successfully")
+            
+        except Exception as e:
+            logging.getLogger("system").error(f"Error in _doCreateInput: {e}")
+            import traceback
+            logging.getLogger("system").error(f"Traceback: {traceback.format_exc()}")
+            # Don't re-raise here as it would crash the app
+            # Instead, reset model state gracefully
+            try:
+                self.layoutChanged.emit()
+            except:
+                pass
 
     @Slot(str, str)
     def changeName(self, old_labele: str, new_label: str) -> None:
@@ -1023,6 +1092,10 @@ class AbstractDeviceState(QtCore.QAbstractListModel):
 
         el = event_handler.EventListener()
         el.joystick_event.connect(self._event_callback)
+        
+        # Ensure the EventListener is started (it's a singleton, so this is safe to call multiple times)
+        if not el._is_running:
+            el.start()
 
         self._device = None
         self._device_uuid = None
@@ -1051,7 +1124,7 @@ class AbstractDeviceState(QtCore.QAbstractListModel):
         self._initialize_state()
         self.deviceChanged.emit()
 
-    def _initilize_state(self) -> None:
+    def _initialize_state(self) -> None:
         raise GremlinError(
             "AbstractDeviceState._initialize_state not implemented"
         )
@@ -1089,17 +1162,28 @@ class DeviceAxisState(AbstractDeviceState):
 
     def _event_handler_impl(self, event: event_handler.Event) -> None:
         if event.event_type == InputType.JoystickAxis:
-            index = self._identifier_map[event.identifier]
-            self._state[index]["value"] = event.value
-            self.dataChanged.emit(self.index(index, 0), self.index(index, 0))
+            # Check if this axis identifier is in our map
+            if event.identifier in self._identifier_map:
+                index = self._identifier_map[event.identifier]
+                self._state[index]["value"] = event.value
+                self.dataChanged.emit(self.index(index, 0), self.index(index, 0))
 
     def _initialize_state(self) -> None:
-        for i in range(self._device.axis_count):
-            self._identifier_map[self._device.axis_map[i].axis_index] = i
-            self._state.append({
-                "identifier": self._device.axis_map[i].axis_index,
-                "value": 0.0
-            })
+        # Create a set of unique axis indices to avoid duplicates
+        seen_axes = set()
+        index = 0
+        
+        # Process all axis_map entries - these are the actual axes on the device
+        for axis_map_entry in self._device.axis_map:
+            axis_index = axis_map_entry.axis_index
+            if axis_index not in seen_axes and axis_index > 0:  # Skip invalid axes
+                seen_axes.add(axis_index)
+                self._identifier_map[axis_index] = index
+                self._state.append({
+                    "identifier": axis_index,
+                    "value": 0.0
+                })
+                index += 1
 
 
 @QtQml.QmlElement
@@ -1107,17 +1191,74 @@ class DeviceButtonState(AbstractDeviceState):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._button_id_map = {}  # Maps button_id to state index
 
     def _event_handler_impl(self, event):
         if event.event_type == InputType.JoystickButton:
-            idx = event.identifier-1
-            self._state[idx]["value"] = event.is_pressed
-            self.dataChanged.emit(self.index(idx, 0), self.index(idx, 0))
+            # Use the button ID mapping to find the correct state index
+            if event.identifier in self._button_id_map:
+                idx = self._button_id_map[event.identifier]
+                self._state[idx]["value"] = event.is_pressed
+                self.dataChanged.emit(self.index(idx, 0), self.index(idx, 0))
 
     def _initialize_state(self) -> None:
+        # Get all possible button IDs from the device's capabilities
+        # We need to examine the actual device to determine what button IDs it supports
+        try:
+            import linput
+            import evdev
+            
+            # Find the device by GUID
+            devices = linput.get_joystick_devices()
+            target_device = None
+            for dev in devices:
+                if dev.device_guid == self._device_uuid:
+                    target_device = dev
+                    break
+            
+            if target_device:
+                # Get the raw evdev device to examine capabilities
+                try:
+                    device_path = target_device.device_path
+                    evdev_device = evdev.InputDevice(device_path)
+                    caps = evdev_device.capabilities()
+                    
+                    # Get device manager to use button mapping
+                    device_manager = linput.get_device_manager()
+                    
+                    if evdev.ecodes.EV_KEY in caps:
+                        key_codes = caps[evdev.ecodes.EV_KEY]
+                        button_ids = []
+                        
+                        # Map all key codes to button IDs
+                        for key_code in key_codes:
+                            button_id = device_manager._map_button_code_to_id(key_code)
+                            if button_id is not None:
+                                button_ids.append(button_id)
+                        
+                        # Sort button IDs and create sequential state entries
+                        button_ids.sort()
+                        for i, button_id in enumerate(button_ids):
+                            self._button_id_map[button_id] = i
+                            self._state.append({
+                                "identifier": button_id,
+                                "value": False
+                            })
+                    
+                    evdev_device.close()
+                    return
+                    
+                except Exception as e:
+                    logging.getLogger("system").warning(f"Failed to get detailed button mapping: {e}")
+                    
+        except ImportError:
+            logging.getLogger("system").warning("linput not available for detailed button mapping")
+        
+        # Fallback: use simple sequential mapping
         for i in range(self._device.button_count):
+            self._button_id_map[i + 1] = i
             self._state.append({
-                "identifier": i+1,
+                "identifier": i + 1,
                 "value": False
             })
 
@@ -1131,7 +1272,35 @@ class DeviceHatState(AbstractDeviceState):
     def _event_handler_impl(self, event):
         if event.event_type == InputType.JoystickHat:
             idx = event.identifier-1
-            pt = QtCore.QPoint(event.value[0], event.value[1])
+            
+            # Handle various value formats for hat/POV input
+            x, y = 0, 0  # Default values
+            
+            # Debug: print the actual value structure
+            print(f"DEBUG: Hat event value = {event.value}, type = {type(event.value)}")
+            
+            if isinstance(event.value, (tuple, list)):
+                if len(event.value) >= 2:
+                    # Check if it's a nested tuple like ((0, -1), -1)
+                    first_item = event.value[0]
+                    if isinstance(first_item, (tuple, list)) and len(first_item) >= 2:
+                        # Nested format: ((x, y), z) - use the inner tuple
+                        x, y = int(first_item[0]), int(first_item[1])
+                    else:
+                        # Standard format: (x, y)
+                        x, y = int(event.value[0]), int(event.value[1])
+                elif len(event.value) == 1:
+                    # Handle single nested tuple: ((x, y),)
+                    inner = event.value[0]
+                    if isinstance(inner, (tuple, list)) and len(inner) >= 2:
+                        x, y = int(inner[0]), int(inner[1])
+                    else:
+                        x = int(inner) if isinstance(inner, (int, float)) else 0
+            elif isinstance(event.value, (int, float)):
+                # Single value, assume it's x coordinate
+                x = int(event.value)
+            
+            pt = QtCore.QPoint(x, y)
             if pt != self._state[idx]["value"]:
                 self._state[idx]["value"] = pt
                 self.dataChanged.emit(self.index(idx, 0), self.index(idx, 0))
@@ -1156,6 +1325,10 @@ class DeviceAxisSeries(QtCore.QObject):
 
         el = event_handler.EventListener()
         el.joystick_event.connect(self._event_callback)
+        
+        # Ensure the EventListener is started (it's a singleton, so this is safe to call multiple times)
+        if not el._is_running:
+            el.start()
 
         self._device = None
         self._device_uuid = None
@@ -1194,10 +1367,12 @@ class DeviceAxisSeries(QtCore.QObject):
             return
 
         if event.event_type == InputType.JoystickAxis:
-            index = self._identifier_map[event.identifier]
-            self._state[index]["timeSeries"].append(
-                (time.time(), event.value)
-            )
+            # Check if this axis identifier is in our map
+            if event.identifier in self._identifier_map:
+                index = self._identifier_map[event.identifier]
+                self._state[index]["timeSeries"].append(
+                    (time.time(), event.value)
+                )
 
     @Property(int, notify=axisCountChanged)
     def axisCount(self) -> int:
@@ -1268,6 +1443,10 @@ class AxisCalibration(QtCore.QAbstractListModel):
 
         self._event_listener = event_handler.EventListener()
         self._event_listener.joystick_event.connect(self._event_callback)
+        
+        # Ensure the EventListener is started (it's a singleton, so this is safe to call multiple times)
+        if not self._event_listener._is_running:
+            self._event_listener.start()
 
         self._device = None
         self._device_uuid = None

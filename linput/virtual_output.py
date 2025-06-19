@@ -411,6 +411,37 @@ def get_virtual_device_manager() -> LinuxVirtualDeviceManager:
     return _virtual_device_manager
 
 
+def get_virtual_devices():
+    """Get list of all virtual devices."""
+    global _virtual_devices
+    return _virtual_devices.copy()
+
+
+def is_virtual_device_name(device_name: str) -> bool:
+    """Check if a device name corresponds to a virtual device."""
+    # First check the in-memory registry (for devices created in this session)
+    global _virtual_devices
+    for device in _virtual_devices:
+        if device.name == device_name:
+            return True
+    
+    # Fall back to name pattern matching for persistent detection
+    # Virtual devices created by Joystick Gremlin always have this prefix
+    if device_name.startswith("JoystickGremlin_"):
+        return True
+    
+    return False
+
+
+def is_virtual_device_guid(device_guid: uuid.UUID) -> bool:
+    """Check if a device GUID corresponds to a virtual device."""
+    global _virtual_devices
+    for device in _virtual_devices:
+        if device.device_guid == device_guid:
+            return True
+    return False
+
+
 def cleanup_all_devices():
     """Clean up all virtual devices."""
     global _virtual_devices

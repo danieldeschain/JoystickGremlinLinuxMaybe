@@ -89,12 +89,14 @@ ApplicationWindow {
 
             MenuItem {
                 text: qsTr("New Profile")
+                icon.source: "qrc:///icons/profile_new"
                 onTriggered: {
                     backend.newProfile()
                 }
             }
             MenuItem {
                 text: qsTr("Load Profile")
+                icon.source: "qrc:///icons/profile_load"
                 onTriggered: {
                     idLoadProfileFileDialog.open()
                 }
@@ -116,6 +118,7 @@ ApplicationWindow {
 
             MenuItem {
                 text: qsTr("Save Profile")
+                icon.source: "qrc:///icons/profile_save"
                 onTriggered: {
                     var fpath = backend.profilePath()
                     if(fpath === "")
@@ -130,52 +133,96 @@ ApplicationWindow {
             }
             MenuItem {
                 text: qsTr("Save Profile As")
+                icon.source: "qrc:///icons/profile_save"
                 onTriggered: {
                     idSaveProfileFileDialog.open()
                 }
             }
+            MenuSeparator {}
+            MenuItem {
+                text: qsTr("Modify Profile")
+                onTriggered: {
+                    if (backend) backend.modifyProfile()
+                }
+            }
+            MenuSeparator {}
             MenuItem {
                 text: qsTr("Exit")
                 onTriggered: Qt.quit();
+            }
+        }
+        
+        Menu {
+            title: qsTr("Actions")
+
+            MenuItem {
+                text: qsTr("Create 1:1 mapping")
+                onTriggered: {
+                    if (backend) backend.createOneToOneMapping()
+                }
+            }
+            MenuItem {
+                text: qsTr("Merge Axis")
+                onTriggered: Helpers.createComponent("DialogMergeAxis.qml")
+            }
+            MenuItem {
+                text: qsTr("Swap devices")
+                onTriggered: Helpers.createComponent("DialogSwapDevices.qml")
             }
         }
         Menu {
             title: qsTr("Tools")
 
             MenuItem {
+                text: qsTr("Virtual Joysticks")
+                icon.source: "qrc:///icons/vjoy"
+                onTriggered: Helpers.createComponent("DialogVirtualJoysticks.qml")
+            }
+            MenuSeparator {}
+            MenuItem {
                 text: qsTr("Manage Modes")
+                icon.source: "qrc:///icons/modes"
                 onTriggered: Helpers.createComponent("DialogManageModes.qml")
             }
             MenuItem {
                 text: qsTr("Input Repeater")
-                //onTriggered: Helpers.createComponent(".qml")
+                icon.source: "qrc:///icons/input_repeater"
+                onTriggered: Helpers.createComponent("DialogInputRepeater.qml")
             }
             MenuItem {
                 text: qsTr("Device Information")
+                icon.source: "qrc:///icons/device_info"
                 onTriggered: Helpers.createComponent("DialogDeviceInformation.qml")
             }
             MenuItem {
                 text: qsTr("Calibration")
+                icon.source: "qrc:///icons/calibration"
                 onTriggered: Helpers.createComponent("DialogCalibration.qml")
             }
             MenuItem {
                 text: qsTr("Input Viewer")
+                icon.source: "qrc:///icons/input_viewer"
                 onTriggered: Helpers.createComponent("DialogInputViewer.qml")
             }
             MenuSeparator {}
-            // MenuItem {
-            //     text: qsTr("PDF Cheatsheet")
-            //     onTriggered: Helpers.createComponent("DialogPDFCheatsheet.qml")
-            // }
-            MenuSeparator {            }
+            MenuItem {
+                text: qsTr("PDF Cheatsheet")
+                icon.source: "qrc:///icons/pdf"
+                onTriggered: {
+                    if (backend) backend.generatePDFCheatsheet()
+                }
+            }
+            MenuSeparator {}
             MenuItem {
                 text: qsTr("Options")
+                icon.source: "qrc:///icons/options"
                 onTriggered: Helpers.createComponent("DialogOptions.qml")
             }
-            // MenuItem {
-            //     text: qsTr("Log Display")
-            //     onTriggered: Helpers.createComponent("DialogLogDisplay.qml")
-            // }
+            MenuItem {
+                text: qsTr("Log Display")
+                icon.source: "qrc:///icons/log"
+                onTriggered: Helpers.createComponent("DialogLogDisplay.qml")
+            }
         }
 
         Menu {
@@ -458,26 +505,12 @@ ApplicationWindow {
             InputConfiguration {
                 id: _inputConfigurationPanel
 
-                visible: uiState ? uiState.currentTab !== "scripts" : true
+                visible: uiState ? (uiState.currentTab === "physical" || uiState.currentTab === "intermediate") : true
 
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
                 SplitView.minimumWidth: 600
             }
-        }
-
-        ScriptManager {
-            id: _scriptManager
-
-            Layout.fillHeight: true
-            Layout.fillWidth: true
-
-            scriptListModel: backend ? backend.scriptListModel : null
-
-            // Without this the height bugs out
-            Layout.verticalStretchFactor: 10
-
-            visible: uiState ? uiState.currentTab === "scripts" : false
         }
     }
 

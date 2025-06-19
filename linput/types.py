@@ -87,6 +87,7 @@ class DeviceSummary:
     is_virtual: bool = False
     vjoy_id: int = 0  # For virtual output devices
     device_path: str = ""  # Linux device path
+    joystick_id: int = 0  # Linux joystick ID (js0=0, js1=1, etc.)
     
     def set_vjoy_id(self, vjoy_id: int) -> None:
         """Sets the virtual device id."""

@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Tuple
 import linput
 import linput.virtual_output
 from linput.types import DeviceSummary
+from gremlin import device_initialization, event_handler
 
 
 class VirtualJoystickPermissionError(Exception):
@@ -116,15 +117,20 @@ class VirtualJoystickManager:
             recommendations.append("Load uinput module: sudo modprobe uinput")
             
         if not self._permission_status['user_in_input_group']:
-            recommendations.append(f"Add user to input group: sudo usermod -a -G input {os.getenv('USER', 'username')}")
+            current_user = os.getenv('USER', 'username')
+            recommendations.append(f"Add user to input group: sudo usermod -a -G input {current_user}")
             recommendations.append("Then logout and login again for group changes to take effect")
             
         if not self._permission_status['uinput_accessible']:
-            recommendations.append("Set uinput permissions: sudo chmod 666 /dev/uinput")
-            recommendations.append("Or run application with sudo (not recommended for security)")
+            recommendations.append("For temporary access: sudo chmod 666 /dev/uinput")
+            recommendations.append("For permanent access: add user to input group (see above)")
+            
+        if not self._permission_status['can_create_devices']:
+            recommendations.append("Run the setup script: ./setup_uinput.sh (in the project directory)")
+            recommendations.append("Or apply all fixes above and restart the application")
             
         if not recommendations:
-            recommendations.append("Permissions appear correct - try running a test")
+            recommendations.append("Permissions appear correct - virtual joysticks should work!")
             
         return recommendations
     
@@ -174,6 +180,9 @@ class VirtualJoystickManager:
             device_summary = device.get_device_summary()
             self._device_summaries[device_id] = device_summary
             
+            # Notify the system that devices have changed
+            self._notify_device_change()
+            
             self._logger.info(f"Created virtual joystick: {name} (ID: {device_id})")
             return device_id
             
@@ -201,6 +210,9 @@ class VirtualJoystickManager:
             del self._devices[device_id]
             del self._device_summaries[device_id]
             
+            # Notify the system that devices have changed
+            self._notify_device_change()
+            
             self._logger.info(f"Destroyed virtual joystick ID: {device_id}")
             return True
             
@@ -208,6 +220,22 @@ class VirtualJoystickManager:
             self._logger.error(f"Failed to destroy device {device_id}: {e}")
             return False
     
+    def _notify_device_change(self) -> None:
+        """Notify the system that device list has changed."""
+        try:
+            # Refresh the device initialization list
+            device_initialization.joystick_devices_initialization()
+            
+            # Trigger device change event in the event listener
+            el = event_handler.EventListener()
+            if hasattr(el, 'device_change_event'):
+                el.device_change_event.emit()
+            
+            self._logger.debug("Device change notification sent")
+            
+        except Exception as e:
+            self._logger.warning(f"Failed to send device change notification: {e}")
+
     def get_virtual_joystick(self, device_id: int) -> Optional[linput.virtual_output.LinuxVirtualDevice]:
         """Get virtual joystick device by ID."""
         return self._devices.get(device_id)
