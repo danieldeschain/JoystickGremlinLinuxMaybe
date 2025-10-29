@@ -31,6 +31,16 @@ This package contains the refactored device management components:
 # Re-export all classes for backward compatibility
 from .database import DeviceMapping, DeviceDatabase
 from .models import InputIdentifier, DeviceListModel
+from .device_model import Device
+from .io_management import IODeviceManagementModel, IODeviceInputsModel
+from .vjoy import VJoyDevices
+from .state import (
+    AbstractDeviceState,
+    DeviceAxisState,
+    DeviceButtonState,
+    DeviceHatState
+)
+from .visualization import DeviceAxisSeries, AxisCalibration
 
 __all__ = [
     # Database
@@ -39,4 +49,18 @@ __all__ = [
     # Models
     "InputIdentifier",
     "DeviceListModel",
+    "Device",
+    # IO Management
+    "IODeviceManagementModel",
+    "IODeviceInputsModel",
+    # VJoy
+    "VJoyDevices",
+    # State Tracking
+    "AbstractDeviceState",
+    "DeviceAxisState",
+    "DeviceButtonState",
+    "DeviceHatState",
+    # Visualization
+    "DeviceAxisSeries",
+    "AxisCalibration",
 ]
