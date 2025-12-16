@@ -28,7 +28,8 @@ from xml.etree import ElementTree
 from gremlin import util, event_handler
 from gremlin.error import GremlinError
 # REFACTORED: Use abstraction instead of concrete Library to break circular dependency
-from gremlin.domain import ILibrary, IActionData, Event
+from gremlin.domain.interfaces import ILibrary, IActionData
+from gremlin.domain.events import Event
 from gremlin.types import ActionActivationMode, ActionProperty, InputType, \
     PropertyType, DataInsertionMode, DataCreationMode
 

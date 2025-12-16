@@ -15,35 +15,27 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Cheatsheet generation - main module for PDF cheatsheet creation.
+"""Cheatsheet modules - modular components for PDF cheatsheet generation.
 
-This module provides the main entry point for generating PDF cheatsheets
-from Joystick Gremlin profiles. The actual implementation has been refactored
-into focused submodules within cheatsheet_modules/.
-
-For backward compatibility, all public components are re-exported from this module.
+This package contains focused modules for different aspects of cheatsheet generation:
+- data: InputItemData class for representing input items
+- layout: DeviceFloat and ModeFloat custom flowables for PDF headers
+- generators: PDF document generation functions
+- helpers: Utility functions for formatting and data processing
 """
 
-# Re-export everything from submodules for backward compatibility
-from gremlin.cheatsheet_modules import (
-    InputItemData,
-    hat_direction_abbrev,
-    DeviceFloat,
-    ModeFloat,
-    generate_cheatsheet,
-    recursive,
-    sort_data,
-    format_input_name,
-)
-
-# Private functions also exposed for potential internal use
-from gremlin.cheatsheet_modules.generators import (
+# Re-export all components
+from .data import InputItemData, hat_direction_abbrev
+from .layout import DeviceFloat, ModeFloat
+from .generators import (
     _create_document_template,
     _build_device_storage,
     _create_table_style,
     _create_mode_table,
     _add_device_section,
+    generate_cheatsheet
 )
+from .helpers import recursive, sort_data, format_input_name
 
 __all__ = [
     # Data structures
@@ -54,18 +46,16 @@ __all__ = [
     "DeviceFloat",
     "ModeFloat",
     
-    # Main generator
+    # Generators
     "generate_cheatsheet",
-    
-    # Helpers
-    "recursive",
-    "sort_data",
-    "format_input_name",
-    
-    # Private but potentially used
     "_create_document_template",
     "_build_device_storage",
     "_create_table_style",
     "_create_mode_table",
     "_add_device_section",
+    
+    # Helpers
+    "recursive",
+    "sort_data",
+    "format_input_name",
 ]

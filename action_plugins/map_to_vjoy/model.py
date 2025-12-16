@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8; -*-
+# -*- coding: utf-8; -*-
 
 # Copyright (C) 2016 Lionel Ott
 #
@@ -155,4 +155,5 @@ class MapToVjoyModel(ActionModel):
         notify=buttonInvertedChanged
     )
 
-
+
+

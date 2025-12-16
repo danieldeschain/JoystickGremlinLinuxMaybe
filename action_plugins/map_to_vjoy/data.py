@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8; -*-
+# -*- coding: utf-8; -*-
 
 # Copyright (C) 2016 Lionel Ott
 #
@@ -36,15 +36,8 @@ class MapToVjoyData(AbstractActionData):
     tag = "map-to-vjoy"
     icon = "\uF448"
 
-    @property
-    def functor(self):
-        from action_plugins.map_to_vjoy.functor import MapToVjoyFunctor
-        return MapToVjoyFunctor
-    
-    @property
-    def model(self):
-        from action_plugins.map_to_vjoy.model import MapToVjoyModel
-        return MapToVjoyModel
+    functor = None  # Set after import to avoid circular dependency
+    model = None  # Set after import to avoid circular dependency
 
     properties = [
         ActionProperty.ActivateOnBoth
@@ -144,6 +137,12 @@ class MapToVjoyData(AbstractActionData):
     ) -> None:
         self._vjoy_input_type = new_behavior
 
+
+# Set functor and model after class definition to avoid circular imports
+from action_plugins.map_to_vjoy.functor import MapToVjoyFunctor
+from action_plugins.map_to_vjoy.model import MapToVjoyModel
+MapToVjoyData.functor = MapToVjoyFunctor
+MapToVjoyData.model = MapToVjoyModel
 
 create = MapToVjoyData
 

@@ -28,8 +28,6 @@ from gremlin.plugin_manager import PluginManager
 from gremlin.profile import Library
 from gremlin.signal import signal
 from gremlin.types import ActionActivationMode, InputType
-# REFACTORED: Use IBindingModel abstraction to break circular dependency
-from gremlin.domain import IBindingModel
 # REFACTORED: Import SequenceIndex from shared models module
 from gremlin.ui.models import SequenceIndex
 
@@ -56,7 +54,7 @@ class ActionModel(QtCore.QObject):
     def __init__(
             self,
             data: AbstractActionData,
-            binding_model: IBindingModel,
+            binding_model: "InputItemBindingModel",
             action_index: SequenceIndex,
             parent_index: SequenceIndex,
             parent: QtCore.QObject

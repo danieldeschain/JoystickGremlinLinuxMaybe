@@ -3,10 +3,10 @@ JOYSTICK GREMLIN - ABHÄNGIGKEITSANALYSE & CLEAN CODE REFACTORING
 ================================================================================
 
 ## 1. PROJEKTÜBERSICHT
-   Gesamtanzahl Module: 108
-   Gesamtzeilen Code: 51,184
-   Gesamtanzahl Funktionen: 1886
-   Gesamtanzahl Klassen: 276
+   Gesamtanzahl Module: 142
+   Gesamtzeilen Code: 54,913
+   Gesamtanzahl Funktionen: 2036
+   Gesamtanzahl Klassen: 297
 
 ## 2. EXTERNE ABHÄNGIGKEITEN
    Linux-native Bibliotheken:
@@ -23,6 +23,7 @@ JOYSTICK GREMLIN - ABHÄNGIGKEITSANALYSE & CLEAN CODE REFACTORING
    Legacy Windows-Abhängigkeiten (ENTFERNEN!):
    ⚠️  - ctypes.wintypes
    ⚠️  - dill
+   ⚠️  - dill_compat
    ⚠️  - vjoy
    ⚠️  - vjoy.vjoy
    ⚠️  - vjoy.vjoy_interface
@@ -33,10 +34,8 @@ JOYSTICK GREMLIN - ABHÄNGIGKEITSANALYSE & CLEAN CODE REFACTORING
    ⚠️  - win32process
 
 ## 3. ZYKLISCHE ABHÄNGIGKEITEN (CLEAN CODE VERSTOSSE)
-   ⚠️  Gefundene zyklische Abhängigkeiten: 3
-   1. gremlin.base_classes -> gremlin.profile -> gremlin.base_classes
-   2. gremlin.ui.profile -> gremlin.ui.action_model -> gremlin.ui.profile
-   3. gremlin.ui.profile -> action_plugins.root -> gremlin.ui.profile
+   ⚠️  Gefundene zyklische Abhängigkeiten: 1
+   1. gremlin.profile -> gremlin.base_classes -> gremlin.profile
 
 ## 4. LANGE FUNKTIONEN (> 50 Zeilen - Clean Code Verstoß)
    ✓ Alle Funktionen sind angemessen kurz!
@@ -46,17 +45,17 @@ JOYSTICK GREMLIN - ABHÄNGIGKEITSANALYSE & CLEAN CODE REFACTORING
    - action_plugins.merge_axis: 12 Abhängigkeiten
 
 ## 6. GROSSE MODULE (> 500 Zeilen)
-   ⚠️  Große Module: 18
+   ⚠️  Große Module: 16
    - resources: 20,104 Zeilen
-   - gremlin.ui.device: 1,473 Zeilen
-   - gremlin.profile: 1,338 Zeilen
-   - gremlin.util: 1,041 Zeilen
+   - gremlin.ui.device_old: 1,473 Zeilen
+   - gremlin.util_old: 1,041 Zeilen
    - deprecated_windows_only.vjoy.vjoy: 984 Zeilen
-   - gremlin.ui.profile: 943 Zeilen
-   - gremlin.macro: 920 Zeilen
    - action_plugins.macro: 781 Zeilen
    - gremlin.types: 729 Zeilen
    - deprecated_windows_only.dill: 681 Zeilen
+   - action_plugins.condition: 680 Zeilen
+   - gremlin.util_modules.xml_helpers: 678 Zeilen
+   - linput.device_manager: 633 Zeilen
 
 ## 7. CLEAN CODE REFACTORING-EMPFEHLUNGEN
 
@@ -75,8 +74,8 @@ JOYSTICK GREMLIN - ABHÄNGIGKEITSANALYSE & CLEAN CODE REFACTORING
 
 ### 7.4 Große Module aufteilen:
    - resources (20,104 Zeilen) → In mehrere Module aufteilen
-   - gremlin.ui.device (1,473 Zeilen) → In mehrere Module aufteilen
-   - gremlin.profile (1,338 Zeilen) → In mehrere Module aufteilen
+   - gremlin.ui.device_old (1,473 Zeilen) → In mehrere Module aufteilen
+   - gremlin.util_old (1,041 Zeilen) → In mehrere Module aufteilen
 
 ## 8. ARCHITEKTUR-VERBESSERUNGEN
 
@@ -210,12 +209,6 @@ graph TD
     map_to_mouse[map_to_mouse] --> types[types]
     map_to_mouse[map_to_mouse] --> action_model[action_model]
     map_to_mouse[map_to_mouse] --> profile[profile]
-    map_to_vjoy[map_to_vjoy] --> gremlin[gremlin]
-    map_to_vjoy[map_to_vjoy] --> base_classes[base_classes]
-    map_to_vjoy[map_to_vjoy] --> profile[profile]
-    map_to_vjoy[map_to_vjoy] --> types[types]
-    map_to_vjoy[map_to_vjoy] --> action_model[action_model]
-    map_to_vjoy[map_to_vjoy] --> profile[profile]
     merge_axis[merge_axis] --> gremlin[gremlin]
     merge_axis[merge_axis] --> base_classes[base_classes]
     merge_axis[merge_axis] --> config[config]
@@ -303,9 +296,17 @@ graph TD
     base_classes[base_classes] --> types[types]
     cheatsheet[cheatsheet] --> gremlin[gremlin]
     cheatsheet[cheatsheet] --> keyboard[keyboard]
-    code_runner[code_runner] --> gremlin[gremlin]
-    code_runner[code_runner] --> base_classes[base_classes]
-    code_runner[code_runner] --> types[types]
+    callbacks[callbacks] --> gremlin[gremlin]
+    callbacks[callbacks] --> base_classes[base_classes]
+    callbacks[callbacks] --> virtual_buttons[virtual_buttons]
+    callbacks[callbacks] --> types[types]
+    runner[runner] --> gremlin[gremlin]
+    runner[runner] --> callbacks[callbacks]
+    virtual_buttons[virtual_buttons] --> gremlin[gremlin]
+    virtual_buttons[virtual_buttons] --> types[types]
+    code_runner_original_backup[code_runner_original_backup] --> gremlin[gremlin]
+    code_runner_original_backup[code_runner_original_backup] --> base_classes[base_classes]
+    code_runner_original_backup[code_runner_original_backup] --> types[types]
     common[common] --> gremlin[gremlin]
     common[common] --> keyboard[keyboard]
     common[common] --> types[types]
@@ -346,13 +347,30 @@ graph TD
     linux_sendinput[linux_sendinput] --> event_handler[event_handler]
     linux_sendinput[linux_sendinput] --> types[types]
     linux_sendinput[linux_sendinput] -.->|Linux| linput[linput]
-    macro[macro] --> gremlin[gremlin]
-    macro[macro] --> base_classes[base_classes]
-    macro[macro] --> common[common]
     macro[macro] --> config[config]
-    macro[macro] --> keyboard[keyboard]
-    macro[macro] --> sendinput[sendinput]
+    macro[macro] --> actions[actions]
+    macro[macro] --> macro[macro]
+    macro[macro] --> manager[manager]
+    macro[macro] --> repeat[repeat]
     macro[macro] --> types[types]
+    actions[actions] --> gremlin[gremlin]
+    actions[actions] --> error[error]
+    actions[actions] --> event_handler[event_handler]
+    actions[actions] --> keyboard[keyboard]
+    actions[actions] --> sendinput[sendinput]
+    actions[actions] --> types[types]
+    macro[macro] --> base_classes[base_classes]
+    macro[macro] --> error[error]
+    macro[macro] --> keyboard[keyboard]
+    macro[macro] --> actions[actions]
+    macro[macro] --> repeat[repeat]
+    manager[manager] --> common[common]
+    manager[manager] --> config[config]
+    manager[manager] --> actions[actions]
+    manager[manager] --> macro[macro]
+    manager[manager] --> repeat[repeat]
+    repeat[repeat] --> gremlin[gremlin]
+    repeat[repeat] --> types[types]
     mode_manager[mode_manager] --> gremlin[gremlin]
     mode_manager[mode_manager] --> common[common]
     mode_manager[mode_manager] --> config[config]
@@ -363,12 +381,29 @@ graph TD
     plugin_manager[plugin_manager] --> types[types]
     profile[profile] --> gremlin[gremlin]
     profile[profile] --> base_classes[base_classes]
-    profile[profile] --> domain[domain]
     profile[profile] --> intermediate_output[intermediate_output]
-    profile[profile] --> tree[tree]
+    profile[profile] --> profile_modules[profile_modules]
     profile[profile] --> types[types]
-    profile[profile] --> user_script[user_script]
     profile[profile] --> util[util]
+    profile_modules[profile_modules] --> input_items[input_items]
+    profile_modules[profile_modules] --> library[library]
+    profile_modules[profile_modules] --> mode_hierarchy[mode_hierarchy]
+    profile_modules[profile_modules] --> script_manager[script_manager]
+    profile_modules[profile_modules] --> settings[settings]
+    profile_modules[profile_modules] --> virtual_buttons[virtual_buttons]
+    input_items[input_items] --> gremlin[gremlin]
+    input_items[input_items] --> intermediate_output[intermediate_output]
+    input_items[input_items] --> virtual_buttons[virtual_buttons]
+    input_items[input_items] --> types[types]
+    input_items[input_items] --> util[util]
+    library[library] --> gremlin[gremlin]
+    library[library] --> base_classes[base_classes]
+    library[library] --> util[util]
+    mode_hierarchy[mode_hierarchy] --> gremlin[gremlin]
+    mode_hierarchy[mode_hierarchy] --> tree[tree]
+    mode_hierarchy[mode_hierarchy] --> util[util]
+    script_manager[script_manager] --> gremlin[gremlin]
+    virtual_buttons[virtual_buttons] --> types[types]
     repeater[repeater] --> gremlin[gremlin]
     repeater[repeater] --> types[types]
     sendinput[sendinput] --> common[common]
@@ -398,22 +433,44 @@ graph TD
     backend[backend] -.->|Linux| linput[linput]
     config[config] --> config[config]
     config[config] --> types[types]
-    device[device] --> gremlin[gremlin]
-    device[device] --> common[common]
     device[device] --> config[config]
-    device[device] --> error[error]
-    device[device] --> intermediate_output[intermediate_output]
-    device[device] --> signal[signal]
     device[device] --> types[types]
-    profile[profile] --> base_classes[base_classes]
-    profile[profile] --> error[error]
-    profile[profile] --> plugin_manager[plugin_manager]
-    profile[profile] --> profile[profile]
-    profile[profile] --> signal[signal]
-    profile[profile] --> types[types]
-    profile[profile] --> action_model[action_model]
-    profile[profile] --> models[models]
-    profile[profile] --> util[util]
+    device_database[device_database] --> common[common]
+    device_database[device_database] --> types[types]
+    database[database] --> gremlin[gremlin]
+    database[database] --> common[common]
+    database[database] --> config[config]
+    device_model[device_model] --> gremlin[gremlin]
+    device_model[device_model] --> types[types]
+    io_management[io_management] --> gremlin[gremlin]
+    io_management[io_management] --> error[error]
+    io_management[io_management] --> intermediate_output[intermediate_output]
+    io_management[io_management] --> types[types]
+    models[models] --> gremlin[gremlin]
+    models[models] --> error[error]
+    models[models] --> types[types]
+    state[state] --> gremlin[gremlin]
+    state[state] --> error[error]
+    state[state] --> types[types]
+    visualization[visualization] --> gremlin[gremlin]
+    visualization[visualization] --> config[config]
+    visualization[visualization] --> types[types]
+    vjoy[vjoy] --> gremlin[gremlin]
+    vjoy[vjoy] --> error[error]
+    vjoy[vjoy] --> types[types]
+    device_old[device_old] --> gremlin[gremlin]
+    device_old[device_old] --> common[common]
+    device_old[device_old] --> config[config]
+    device_old[device_old] --> error[error]
+    device_old[device_old] --> intermediate_output[intermediate_output]
+    device_old[device_old] --> signal[signal]
+    device_old[device_old] --> types[types]
+    device_state[device_state] --> gremlin[gremlin]
+    device_state[device_state] --> error[error]
+    device_state[device_state] --> types[types]
+    virtual_buttons[virtual_buttons] --> profile[profile]
+    virtual_buttons[virtual_buttons] --> types[types]
+    virtual_buttons[virtual_buttons] --> util[util]
     script[script] --> gremlin[gremlin]
     script[script] --> error[error]
     script[script] --> profile[profile]
@@ -421,8 +478,16 @@ graph TD
     script[script] --> device[device]
     util[util] --> gremlin[gremlin]
     util[util] --> types[types]
-    util[util] --> gremlin[gremlin]
-    util[util] --> types[types]
+    util[util] --> calibration[calibration]
+    util[util] --> file_operations[file_operations]
+    util[util] --> misc[misc]
+    util[util] --> path_utils[path_utils]
+    util[util] --> xml_helpers[xml_helpers]
+    misc[misc] --> gremlin[gremlin]
+    xml_helpers[xml_helpers] --> gremlin[gremlin]
+    xml_helpers[xml_helpers] --> types[types]
+    util_old[util_old] --> gremlin[gremlin]
+    util_old[util_old] --> types[types]
     windows_event_hook[windows_event_hook] --> common[common]
     windows_event_hook[windows_event_hook] --> types[types]
     joystick_gremlin[joystick_gremlin] --> config[config]

@@ -41,7 +41,7 @@ from gremlin import common, config, device_initialization, error, keyboard, \
 from gremlin.input_cache import Joystick, Keyboard
 from gremlin.types import InputType
 # REFACTORED: Import Event from domain to break circular dependency
-from gremlin.domain import Event
+from gremlin.domain.events import Event
 
 
 if TYPE_CHECKING:
