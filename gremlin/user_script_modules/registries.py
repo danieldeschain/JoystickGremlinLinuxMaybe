@@ -77,8 +77,6 @@ class CallbackRegistry:
 
 
 class PeriodicRegistry:
-\n\nclass PeriodicRegistry:
-
     """Registry for periodically executed functions."""
 
     def __init__(self):
@@ -180,10 +178,11 @@ callback_registry = CallbackRegistry()
 periodic_registry = PeriodicRegistry()
 
 
-class JoystickDecorator:
-\n\nclass ScriptVariableRegistry:
+class ScriptVariableRegistry:
+    """Registry for script variables."""
 
     def __init__(self):
+        """Creates a new instance."""
         self._registry = {}
 
     def clear(self):
@@ -235,6 +234,3 @@ class JoystickDecorator:
         if script_id not in self._registry:
             return None
         return self._registry[script_id].get(name, None)
-
-
-class Script:

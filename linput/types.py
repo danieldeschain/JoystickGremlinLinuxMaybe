@@ -101,6 +101,9 @@ UUID_Virtual = uuid.UUID('89d5e905-1e26-4c52-ad46-7bcc06df4c20')
 UUID_Intermediate_Output = uuid.UUID('f0af472f-8e17-493b-a1eb-7333ee8543f2')
 UUID_Invalid = uuid.UUID('00000000-0000-0000-0000-000000000000')
 
-# Aliases for compatibility
+# Aliases for compatibility (Windows code used uppercase versions)
 GUID_Keyboard = UUID_Keyboard
 GUID_Mouse = UUID_Mouse
+UUID_KEYBOARD = UUID_Keyboard  # Uppercase alias
+UUID_MOUSE = UUID_Mouse        # Uppercase alias
+UUID_VIRTUAL = UUID_Virtual    # Uppercase alias

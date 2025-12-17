@@ -159,7 +159,3 @@ class KeyboardPlugin:
             callback with the plugin parameter bound
         """
         return partial_fn(callback, keyboard=KeyboardPlugin.keyboard)
-
-
-
-class ScriptVariableRegistry:

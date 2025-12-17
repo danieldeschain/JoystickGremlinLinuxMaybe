@@ -18,7 +18,7 @@
 """Cheatsheet helper functions - utilities and formatting."""
 
 import gremlin
-import gremlin.keyboard
+import gremlin.keyboard_common as keyboard  # Platform-agnostic keyboard
 from gremlin.cheatsheet_modules.data import InputItemData
 from gremlin.types import InputType
 
@@ -94,6 +94,6 @@ def format_input_name(input_type, identifier):
     }
 
     if input_type == InputType.Keyboard:
-        return gremlin.keyboard.key_from_code(identifier[0], identifier[1]).name
+        return keyboard.key_from_code(identifier[0], identifier[1]).name
     else:
         return "{} {}".format(type_map[input_type], identifier)
